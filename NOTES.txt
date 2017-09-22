@@ -1,0 +1,153 @@
+<div class="avatar">
+	<img id="body" src="images/ears0.png">
+	<img data-category="skin" id="worn-skin" class="clothing" src="images/items/skins/skin0.p">
+	<img data-category="outfit" id="worn-outfit" class="clothing" src="images/items/outfits/ofit0.png">
+	<img data-category="head" id="worn-head" class="skinnable clothing" src="images/items/hea/head0.png">
+	<img data-category="hair" id="worn-hair" class="clothing" src="images/items/hairs/hair0.p">
+	<img id="hair-backing" class="clothing" >
+	<img data-category="eye" id="worn-eye" class="clothing" src="images/items/eyes/eye0.png">
+	<img data-category="eyebrow" id="worn-eyebrow" class="clothing" src="images/items/eyebroweyebrow0.png">
+	<img data-category="nose" id="worn-nose" class="clothing" src="images/items/noses/nose0.p">
+	<img data-category="mouth" id="worn-mouth" class="clothing" src="images/items/mouths/mout.png">
+	<img data-category="spectacle" id="worn-spectacle" class="clothing" >
+	<img data-category="facehair" id="worn-facehair" class="clothing" >
+</div>
+
+#body {
+	opacity: 0;
+	z-index: 3;
+	display: block;
+	height: 110%;
+	margin: auto;
+}
+#hair-backing{
+	z-index: 3;
+}
+
+24*13*9*17*6*13*27*6 = 603,192,096
+4*4*8 = 128 colors
+
+head (tone=4)
+eye (color=4)
+eyebrow
+mouth
+facehair
+nose
+hair (color=8)
+spectacle
+
+index-head:tone-eye:color-eyebrow-mouth-facehair-nose-hair:color-spectacle.png
+
+# count: 23
+#worn-head {
+    z-index: 7;
+    width: 82%;
+    left: 0px;
+    top: 191px;
+}
+# count: 13
+#worn-eye {
+    z-index: 7;
+    top: 312px;
+    left: 0px;
+    width: 80.5%;
+}
+# count: 9
+#worn-eyebrow {
+    z-index: 7;
+    top: 279px;
+    left: 0px;
+    width: 81%;
+}
+# count: 17
+#worn-mouth {
+    z-index: 7;
+    top: 217px;
+    left: 7px;
+    width: 76%;
+}
+# count: 6
+#worn-facehair {
+    z-index: 7;
+    width: 83%;
+    top: 598px;
+    left: 142px;
+}
+# count: 13
+#worn-nose {
+    z-index: 8;
+    top: 272px;
+    left: 72px;
+    width: 21.8%;
+}
+# count: 27
+#worn-hair {
+	z-index: 8;
+}
+#hair-backing, #worn-hair {
+    top: -2px;
+    left: 5px;
+    width: 98%;
+}
+# count: 6
+#worn-spectacle {
+    z-index: 9;
+    width: 75%;
+    left: 7px;
+    top: 254px;
+}
+
+# UNUSED
+
+#worn-skin {
+	z-index: 4;
+	position: absolute;
+    width: 119%;
+    left: -23.7px;
+    top: -15px;
+}
+.clothing {
+	position: absolute;
+	display: block;
+}
+#worn-bottom {
+	z-index: 5;
+	top: 205px;
+    left: 0px;
+    width: 100%;
+}
+#worn-top {
+    z-index: 6;
+    top: -18px;
+    left: -24px;
+    width: 120%;
+}
+#worn-outfit {
+    position: absolute;
+    display: block;
+    z-index: 5;
+    width: 119%;
+    left: -23.7px;
+    top: -15px;
+}
+#worn-shoe {
+	z-index: 5;
+    top: -27px;
+    width: 123%;
+    left: -29px;
+}
+
+#using generators
+jchang@AF051591:/tmp$ time python3 ~/proj/py/imvutests/image0/run.py ~/proj/py/imvutests/image0/items > /tmp/run1.txt
+real	23m51.479s
+user	23m1.681s
+sys	0m46.305s
+-rw-r--r--   1 jchang         wheel     48G 2017-09-21 13:15 run1
+
+#using recursion
+(venv) jchang@AF051591:~/proj/py/imvutests/image0$ time python3 run_combos.py items > /tmp/run2.txt
+real    20m39.925s
+user    19m55.202s
+sys     0m42.644s
+
+no hair, facial hair, spectacles
