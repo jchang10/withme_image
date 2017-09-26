@@ -151,3 +151,38 @@ user    19m55.202s
 sys     0m42.644s
 
 no hair, facial hair, spectacles
+
+#filter skins and noses
+(venv) jchang@AF051591:~/proj/py/imvutests/image0$ time python3 run_combos.py items > /tmp/run2.txt
+
+real    14m12.865s
+user    13m49.977s
+sys     0m20.503s
+
+(venv) jchang@AF051591:/tmp$ tail run2.txt 
+272432155-skind-headd5-eye9-eyebrow8-mouthb8-facehair5-noseb6-hair9-none
+272432156-skind-headd5-eye9-eyebrow8-mouthb8-facehair5-noseb6-hair9-spectacle0
+272432157-skind-headd5-eye9-eyebrow8-mouthb8-facehair5-noseb6-hair9-spectacle1
+272432158-skind-headd5-eye9-eyebrow8-mouthb8-facehair5-noseb6-hair9-spectacle2
+272432159-skind-headd5-eye9-eyebrow8-mouthb8-facehair5-noseb6-hair9-spectacle3
+
+(venv) jchang@AF051591:~/proj/py/imvutests/image0$ time python3 run_image1.py /tmp/run_flat.txt items output
+Reading infile
+Done with infile. Index = 84
+Processing images ...
+0 35 6 27 53 3 25 33 64 63 60 49 30 67 12 10 66 47 81 18 48 19 45 14 80 28 2 72 23 68 13 29 43 40 59 41 26 77 71 39 32 51 46 24 61 50 57 34 69 62 21 79 9 37 58 20 83 4 73 65 5 7 82 31 36 84 17 54 70 56 78 76 42 44 52 11 75 74 38 22 8 1 15 16 55 
+real    0m9.316s
+user    0m9.106s
+sys     0m0.190s
+
+10 images per second
+
+run2.txt num rows 136216079 / 10 / 3600 = 3783 hours = 157 days
+rows 1M / 10 / 3600 = 28 hours
+
+(venv) jchang@AF051591:~/proj/py/imvutests/image0$ tail -1 /tmp/run1.txt 
+64365839-skind-headd5-eye9-eyebrow8-mouthb8-facehair5-noseb6-hair8-spectacle3
+
+run1.txt num rows 64,365,839 / 10 / 3600 = 1788 hours = 74 days
+
+3861950.3460
