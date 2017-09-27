@@ -182,7 +182,13 @@ rows 1M / 10 / 3600 = 28 hours
 
 (venv) jchang@AF051591:~/proj/py/imvutests/image0$ tail -1 /tmp/run1.txt 
 64365839-skind-headd5-eye9-eyebrow8-mouthb8-facehair5-noseb6-hair8-spectacle3
-
 run1.txt num rows 64,365,839 / 10 / 3600 = 1788 hours = 74 days
 
-3861950.3460
+(venv) jchang@AF051591:~/proj/py/imvutests/image0$ time python3 run_combos.py items > /tmp/run1.txt
+real    1m55.673s
+user    1m52.543s
+sys     0m2.741s
+(venv) jchang@AF051591:~/proj/py/imvutests/image0$ tail -1 /tmp/run1.txt 
+33430319-skind-headd5-eye9-eyebrow8-mouthb7-facehair5-noseb6-hair6-spectacle3
+rows 33430319 / 10 / 3600 = 929 hours = 39 days
+

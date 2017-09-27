@@ -1,15 +1,11 @@
+import argparse
 import os, sys
 assert sys.version.startswith('3.6'), "Python version 3.6 is required"
-
 from PIL import Image
 
 DEBUG=False
-WIDTH=1200
-HEIGHT=1300
-
-infile_path=None
-items_path='items'
-output_path='output_path'
+WIDTH=1150
+HEIGHT=1350
 
 db = {
     'skin'      :{'file':{'name':'to-image'}, 'offset':(-25, 500)},
@@ -27,10 +23,10 @@ item_keys=list(db.keys())
 
 def create_db():
     for k in item_keys:
-        for file in os.listdir(os.path.join(items_path, k+'s')):
+        for file in os.listdir(os.path.join(args.items_path, k+'s')):
             if file[-4:] == '.png':
                 name = file[:-4]
-                path = os.path.join(items_path, k+'s', file)
+                path = os.path.join(args.items_path, k+'s', file)
                 image = Image.open(path)
                 if k == 'hair' and file[-5:] == 'b.png':
                     #back of the hair file
@@ -54,7 +50,7 @@ def process_line(line):
             im = db[k]['back'][back_name]
             image.paste(im, db[k]['offset'], im)
     image.paste(trans, (0,0), trans)
-    path = os.path.join(output_path,line+'.png')
+    path = os.path.join(args.output_path,line+'.png')
     if DEBUG:
         print('saving image '+path)
     else:
@@ -80,18 +76,29 @@ def process_random(infile_path):
     print("Processing images ...")
     from random import randint
     size = len(outputs)
-    while size:
+    i = 0
+    while size and i < args.count:
         size = size-1
         ri = randint(0, size)
+        i += 1
+        print(str(i)+'.', end='')
         process_line(outputs[ri])
         outputs[ri] = outputs[size]
-    
+        
+
+def create_args(args=None):
+    parser = argparse.ArgumentParser(description='Images processor')
+    parser.add_argument('infile_path', metavar='infile',
+                        help='must be a file')
+    parser.add_argument('items_path', metavar='items', default='items',
+                        help='must be a directory')
+    parser.add_argument('output_path', metavar='output', default='output',
+                        help='must be a directory')
+    parser.add_argument('--count', default=-1, type=int,
+                        help='max count')
+    return parser.parse_args(args)
+        
 if __name__ == '__main__':
-    assert len(sys.argv) == 4, "3 args missing. <infile> <items> <output>"
-    _, infile_path, items_path, output_path = sys.argv
-    assert os.path.isfile(infile_path), "Given <infile> must be a dir."
-    assert os.path.isdir(items_path), "Given <items> must be a dir."
-    assert os.path.isdir(output_path), "Given <output> must be a dir."
+    args = create_args()
     create_db()
-    process_random(infile_path)
-    
+    process_random(args.infile_path)

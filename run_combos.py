@@ -1,7 +1,6 @@
+import argparse
 import os, sys
 assert sys.version.startswith('3.6'), "Python version 3.6 is required"
-
-items_path='items'
 
 db = {
     'skin'      :{'files':{},       'done':False},
@@ -14,10 +13,11 @@ db = {
     'hair'      :{
         'files':{
             'none':{},
+            'hair7':{'gender':'f'},
             'hair9':{'gender':'f'},
             'hair10':{'gender':'f'},
             'hair11':{'gender':'f'},
-            #'hair12':{'gender':'f'},
+            'hair12':{'gender':'f'},
             'hair13':{'gender':'f'},
             'hair14':{'gender':'f'},
             'hair15':{'gender':'f'},
@@ -32,7 +32,7 @@ item_keys=list(db.keys())
 
 def create_db():
     for k in item_keys:
-        path = os.path.join(items_path, k+'s')
+        path = os.path.join(args.items_path, k+'s')
         for filename in os.listdir(path):
             if filename[-4:] == '.png':
                 name = filename[:-4]
@@ -94,17 +94,17 @@ def item_generator(path, index):
         newpath = path + [filename]
         yield from item_generator(newpath, index+1)
 
-def run_items():
-    for i, filenames in enumerate(item_generator([], 0)):
-        print(i, '-', '-'.join(filenames), sep='')
-
 def run_recurse():
     item_recurse('', 0)
 
+def create_args(args=None):
+    parser = argparse.ArgumentParser(description='Images infile processor')
+    parser.add_argument('items_path', metavar='items', default='items',
+                        help='must be a directory')
+    return parser.parse_args(args)
+
 if __name__ == '__main__':
-    assert len(sys.argv) > 1, "Items path argument is missing."
-    items_path=sys.argv[1] 
-    assert os.path.exists(items_path), "Given items path does not exist."
+    args = create_args()
     create_db()
     run_items()
     #run_recurse()
