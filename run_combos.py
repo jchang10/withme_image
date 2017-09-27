@@ -94,6 +94,10 @@ def item_generator(path, index):
         newpath = path + [filename]
         yield from item_generator(newpath, index+1)
 
+def run_items():
+    for i, filenames in enumerate(item_generator([], 0)):
+        print(i, '-', '-'.join(filenames), sep='')
+
 def run_recurse():
     item_recurse('', 0)
 
