@@ -1,23 +1,61 @@
 import argparse
 import os, sys
 assert sys.version.startswith('3.6'), "Python version 3.6 is required"
-from PIL import Image
+from PIL import Image, ImageEnhance
 
 DEBUG=False
 WIDTH=1150
 HEIGHT=1350
 
 db = {
-    'skin'      :{'file':{'name':'to-image'}, 'offset':(-25, 500)},
-    'head'      :{'file':{'name':'to-image'}, 'offset':(72, 238)},
-    'eye'       :{'file':{'name':'to-image'}, 'offset':(72, 499)},
-    'eyebrow'   :{'file':{'name':'to-image'}, 'offset':(72, 470)},
-    'mouth'     :{'file':{'name':'to-image'}, 'offset':(72, 888)},
-    'facehair'  :{'file':{'name':'to-image'}, 'offset':(72, 700)},
-    'nose'      :{'file':{'name':'to-image'}, 'offset':(421, 657)},
-    'hair'      :{'file':{'name':'to-image'}, 'offset':(-29, 38),
-                  'back':{'file':{'name':'to-image'}}},
-    'spectacle' :{'file':{'name':'to-image'}, 'offset':(71, 509)},
+    'skin'      :{'offset':(-25, 500),
+                  'files':{
+                      'name':{'image':'image-object'}
+                  }
+    },
+    'head'      :{'offset':(72, 238),
+                  'files':{
+                      'name':{'image':'image-object'}
+                  }
+    },
+    'eye'       :{'offset':(72, 499),
+                  'files':{
+                      'name':{'image':'image-object'}
+                  }
+    },
+    'eyebrow'   :{'offset':(72, 470),
+                  'files':{
+                      'name':{'image':'image-object'}
+                  }
+    },
+    'mouth'     :{'offset':(72, 870),
+                  'files':{
+                      'name':{'image':'image-object'}
+                  }
+    },
+    'facehair'  :{'offset':(72, 680),
+                  'files':{
+                      'name':{'image':'image-object'}
+                  }
+    },
+    'nose'      :{'offset':(421, 635),
+                  'files':{
+                      'name':{'image':'image-object'}
+                  }
+    },
+    'hair'      :{'offset':(-29, 38),
+                  'files':{
+                      'name':{'image':'image-object'}
+                  }, 
+                  'colors':{
+                      'black':{'skin':'b'}
+                  }
+    },
+    'spectacle' :{'offset':(71, 509),
+                  'files':{
+                      'name':{'image':'image-object'}
+                  },
+    }
 }
 item_keys=list(db.keys())
 
@@ -30,26 +68,37 @@ def create_db():
                 image = Image.open(path)
                 if k == 'hair' and file[-5:] == 'b.png':
                     #back of the hair file
-                    db[k]['back'][name] = image
+                    name = file[:-5]
+                    db[k]['files'][name]['back'] = image
                 else:
-                    db[k]['file'][name] = image
+                    db[k]['files'][name] = {'image':image}
     return db
+
+def get_color_adjust(image, color):
+    return ImageEnhance.Brightness(image.convert("L")).enhance(0.5).convert("RGBA")
 
 def process_line(line):
     index, *items = line.split('-')
     print(index, end=' ', flush=True)
     image = Image.new('RGB', (WIDTH, HEIGHT), color='white')
     trans = Image.new('RGBA', (WIDTH, HEIGHT))
+    skin = items[0][-1]
     for i, name in enumerate(items):
         k = item_keys[i]
-        if name in db[k]['file']:
-            im = db[k]['file'][name]
+        if name in db[k]['files']:
+            im = db[k]['files'][name]['image']
+            colors = db[k].get('colors')
+            if colors:
+                for k2,color in colors.items():
+                    if skin in color.get('skin',''):
+                        im = get_color_adjust(im, color)
+                        items[i] = items[i]+'!'+k2
             trans.paste(im, db[k]['offset'], im)
-        back_name = name+'b'
-        if back_name in db[k].get('back', []):
-            im = db[k]['back'][back_name]
-            image.paste(im, db[k]['offset'], im)
+            if 'back' in db[k]['files'][name]:
+                im = db[k]['files'][name]['back']
+                image.paste(im, db[k]['offset'], im)
     image.paste(trans, (0,0), trans)
+    line = str(index)+'-'+'-'.join(items)
     path = os.path.join(args.output_path,line+'.png')
     if DEBUG:
         print('saving image '+path)
@@ -97,8 +146,11 @@ def create_args(args=None):
     parser.add_argument('--count', default=-1, type=int,
                         help='max count')
     return parser.parse_args(args)
-        
+
+
 if __name__ == '__main__':
     args = create_args()
     create_db()
     process_random(args.infile_path)
+
+

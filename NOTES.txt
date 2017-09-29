@@ -192,3 +192,18 @@ sys     0m2.741s
 33430319-skind-headd5-eye9-eyebrow8-mouthb7-facehair5-noseb6-hair6-spectacle3
 rows 33430319 / 10 / 3600 = 929 hours = 39 days
 
+(venv) jchang@AF051591:~/proj/py/imvutests/image0$ time python3 run_combos.py items > /tmp/run1.txt
+real    1m25.297s
+user    1m23.116s
+sys     0m1.903s
+24532199-skind-headd5-eye9-eyebrow8-mouthb7-facehair5-noseb6-hair6-spectacle3
+rows 24532199 / 10 / 3600 = 681 hours = 28 days
+21787919-skind-headd5-eye9-eyebrow8-mouthb7-facehair5-noseb6-hair6-spectacle3
+rows 21787919 / 10 / 3600 = 605 hours = 25 days
+15634079-skind-headd5-eye9-eyebrow8-mouthb7-none-noseb6-hair6-spectacle3
+rows 15634079 / 10 / 3600 = 434 hours = 18
+run_combos2.py - gender and ethnic filter
+12700799-skind-headd5-eye10-eyebrow8-mouthb7-none-noseb6-hair6-spectacle3
+rows 12700799 / 10 / 3600 = 354 hours = 15 days
+10871279-skind-headd5-eye10-eyebrow8-mouthb7-none-noseb6-hair19-spectacle3
+rows 10871279 / 10 / 3600 = 302 hours = 13 days 54GB
