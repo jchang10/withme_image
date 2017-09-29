@@ -48,7 +48,8 @@ db = {
                       'name':{'image':'image-object'}
                   }, 
                   'colors':{
-                      'black':{'skin':'b'}
+                      'orig':{'skin':'a,c'},
+                      'black':{'skin':'b,c,d'}
                   }
     },
     'spectacle' :{'offset':(71, 509),
@@ -75,7 +76,14 @@ def create_db():
     return db
 
 def get_color_adjust(image, color):
-    return ImageEnhance.Brightness(image.convert("L")).enhance(0.5).convert("RGBA")
+    newim = None
+    if color == 'black':
+        newim = Image.new('LA', image.size)
+        newim.paste(image, (0,0), image)
+        newim = newim.convert('RGBA')
+        newim = ImageEnhance.Brightness(newim).enhance(0.5)
+    assert newim != None, "get_color_adjust failure"
+    return newim
 
 def process_line(line):
     index, *items = line.split('-')
@@ -86,17 +94,34 @@ def process_line(line):
     for i, name in enumerate(items):
         k = item_keys[i]
         if name in db[k]['files']:
-            im = db[k]['files'][name]['image']
+            file = db[k]['files'][name]
+            im = file['image']
+            backim = db[k]['files'][name].get('back')
             colors = db[k].get('colors')
             if colors:
                 for k2,color in colors.items():
                     if skin in color.get('skin',''):
-                        im = get_color_adjust(im, color)
+                        # no color adjust needed
+                        if k2 == 'orig':
+                            continue
+                        newim = file.get(k2)
+                        if not newim:
+                            newim = get_color_adjust(im, k2)
+                            file[k2] = newim
                         items[i] = items[i]+'!'+k2
-            trans.paste(im, db[k]['offset'], im)
-            if 'back' in db[k]['files'][name]:
-                im = db[k]['files'][name]['back']
-                image.paste(im, db[k]['offset'], im)
+                        im = newim
+                        if backim:
+                            newbackim = file.get(k2+'!back')
+                            if not newbackim:
+                                newbackim = get_color_adjust(backim, k2)
+                                file[k2+'!back'] = newbackim
+                            backim = newbackim
+                        trans.paste(im, db[k]['offset'], im)
+                        if backim:
+                            image.paste(backim, db[k]['offset'], backim)
+                        image.paste(trans, (0,0), trans)
+                        line = str(index)+'-'+'-'.join(items)
+                        path = os.path.join(args.output_path,line+'.png')
     image.paste(trans, (0,0), trans)
     line = str(index)+'-'+'-'.join(items)
     path = os.path.join(args.output_path,line+'.png')
@@ -126,7 +151,7 @@ def process_random(infile_path):
     from random import randint
     size = len(outputs)
     i = 0
-    while size and i < args.count:
+    while size and (args.count != -1 and i < args.count):
         size = size-1
         ri = randint(0, size)
         i += 1
