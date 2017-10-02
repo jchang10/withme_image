@@ -119,8 +119,11 @@ db = {
                       'hair19':{'gender':'f', 'skin':'a,b,c,d'},
                   },
                   'colors':{
-                      'orig':{'skin':'a,c'},
-                      'black':{'skin':'b,c,d'},
+                      'orig':{'skin':      'a,  c'},
+                      'black':{'skin':     '  b,c,d'},
+                      'blonde':{'skin':    'a,  c'},
+                      'darkbrown':{'skin': 'a,  c'},
+                      'white':{'skin':     'a,b,c,d'},
                   }
     },
     'spectacle' :{'done':False,
@@ -225,9 +228,8 @@ def item_generator(path, index):
             # skip if the filename ends in 'b'. only used for back hair
             if filename[-1] == 'b':
                 continue
-        if item.get('has_color'):
+        if item.get('has_color') and filename != 'none':
             skin = get_skin(path)
-            assert skin, "Skin is missing for current filename: "+filename
             for k, color in item['colors'].items():
                 if skin in color.get('skin',''):
                     newname = filename if k == 'orig' else filename+'!'+k

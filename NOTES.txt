@@ -206,4 +206,8 @@ run_combos2.py - gender and ethnic filter
 12700799-skind-headd5-eye10-eyebrow8-mouthb7-none-noseb6-hair6-spectacle3
 rows 12700799 / 10 / 3600 = 354 hours = 15 days
 10871279-skind-headd5-eye10-eyebrow8-mouthb7-none-noseb6-hair19-spectacle3
-rows 10871279 / 10 / 3600 = 302 hours = 13 days 54GB
+rows 10871279 / 10 / 3600 = 302 hours = 13 days 54GB 5kb average
+39175919-skind-headd5-eye10-eyebrow8-mouthb7-none-noseb6-hair19!white-spectacle3
+rows 39175919 / 10 / 3600 = 1088 hours = 45 days 2000GB 6 images per sec
+
+
