@@ -96,7 +96,7 @@ db = {
                       'noseb5':{'skin':'  c,d'},
                       'noseb6':{'skin':'  c,d'},
                   }},
-    'hair'      :{'done':False,'has_gender':True, 'has_skin':True,
+    'hair'      :{'done':False,'has_gender':True, 'has_skin':True, 'has_color':True,
                   'files':{
                       'none':{'name':'none', 'gender':'m'}, # bald heads only male
                       'hair0':{'gender':'m',  'skin':'a,b,c'},
@@ -117,7 +117,12 @@ db = {
                       'hair16':{'gender':'f', 'skin':'a,b,c,d'},
                       'hair17':{'gender':'f', 'skin':'a,b,c,d'},
                       'hair19':{'gender':'f', 'skin':'a,b,c,d'},
-                  }},
+                  },
+                  'colors':{
+                      'orig':{'skin':'a,c'},
+                      'black':{'skin':'b,c,d'},
+                  }
+    },
     'spectacle' :{'done':False,
                   'files':{'none':{'name':'none'}}},
 }
@@ -153,13 +158,9 @@ def item_recurse(path, index):
         newpath = str.join('-', (path, filename))
         item_recurse(newpath, index+1)
 
-def get_path_item(path, item):
-    idx = item_keys.index(item)
-    return path[idx]['name']
-
 def gender_match(path, currfile):
     a = currfile.get('gender')
-    for i, file in enumerate(path):
+    for i, (pathname, file) in enumerate(path):
         b = file.get('gender')
         if not a:
             continue
@@ -170,6 +171,13 @@ def gender_match(path, currfile):
         else:
             return False
     return True
+
+def get_skin(path):
+    if len(path) > 0:
+        (name, file) = path[0]
+        return name[-1]
+    else:
+        return None
 
 import re
 pattern = re.compile(r'[ ,]+')
@@ -182,9 +190,9 @@ def skin_match(path, currfile):
         a = currfile.get('skin')
         seta = set(pattern.split(a.strip())) if a else set()
         currfile['skinset'] = seta
-    if len(path) == 0:
+    if get_skin(path) == None:
         return True
-    for i, file in enumerate(path):
+    for i, (pathname, file) in enumerate(path):
         if not db[item_keys[i]].get('has_skin'):
             return True
         setb = file['skinset']
@@ -206,8 +214,7 @@ def item_generator(path, index):
     key = item_keys[index]
     item = db[item_keys[index]]
     files = item['files']
-    for filename in files:
-        currfile = files[filename]
+    for filename, currfile in files.items():
         if item.get('has_gender'):
             if not gender_match(path, currfile):
                 continue
@@ -218,14 +225,21 @@ def item_generator(path, index):
             # skip if the filename ends in 'b'. only used for back hair
             if filename[-1] == 'b':
                 continue
-        newpath = path + [currfile]
-        yield from item_generator(newpath, index+1)
-
+        if item.get('has_color'):
+            skin = get_skin(path)
+            assert skin, "Skin is missing for current filename: "+filename
+            for k, color in item['colors'].items():
+                if skin in color.get('skin',''):
+                    newname = filename if k == 'orig' else filename+'!'+k
+                    yield from item_generator(path + [(newname,currfile)], index+1)
+            continue
+        yield from item_generator(path + [(filename, currfile)], index+1)
+        
 def run_items():
     # for i, filenames in enumerate(item_generator([], 0, {})):
     #     print(i, '-', '-'.join(filenames), sep='')
-    for i, files in enumerate(item_generator([], 0)):
-        print(i, '-', '-'.join([f['name'] for f in files]), sep='')
+    for i, path in enumerate(item_generator([], 0)):
+        print(i, '-', '-'.join([p[0] for p in path]), sep='')
 
 def run_recurse():
     item_recurse('', 0)
