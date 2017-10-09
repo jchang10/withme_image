@@ -81,14 +81,20 @@ def hsv_to_img(hsv):
     rgb = hsv_to_rgb(hsv)
     return Image.fromarray(rgb, 'RGBA')
 
-def colorize(image, hue):
+def _rotate_hue(arr,hout):
+    hsv=rgb_to_hsv(arr)
+    hsv[...,0] = (hsv[...,0] + (hout/360)) % 1
+    rgb=hsv_to_rgb(hsv)
+    return rgb
+
+def new_rotate_hue(image, hue):
     """
     Colorize PIL image `original` with the given
     `hue` (hue within 0-360); returns another PIL image.
     """
     img = image.convert('RGBA')
     arr = np.array(np.asarray(img).astype('float'))
-    new_img = Image.fromarray(rotate_hue(arr, hue).astype('uint8'), 'RGBA')
+    new_img = Image.fromarray(_rotate_hue(arr, hue).astype('uint8'), 'RGBA')
 
     return new_img
 
@@ -104,15 +110,17 @@ def new_hair_color(image, color):
         newim = new_grayscale(image)
         newim = ImageEnhance.Brightness(newim).enhance(0.5)
     elif color == 'blonde':
-        hsv = img_to_hsv(image)
-        hsv = adjust_hsv_hue(hsv, 23)
-        hsv = adjust_hsv_val(hsv, 1.2)
-        newim = hsv_to_img(hsv)
+        # hsv = img_to_hsv(image)
+        # hsv = adjust_hsv_hue(hsv, 23)
+        # hsv = adjust_hsv_val(hsv, 1.2)
+        # newim = hsv_to_img(hsv)
+        newim = new_rotate_hue(image, 20)
+        newim = ImageEnhance.Brightness(newim).enhance(1.6)
     elif color == 'darkbrown':
         newim = ImageEnhance.Brightness(image).enhance(0.6)
     elif color == 'white':
         newim = new_grayscale(image)
-        newim = ImageEnhance.Brightness(newim).enhance(1.9)
+        newim = ImageEnhance.Brightness(newim).enhance(1.5)
     return newim
 
 

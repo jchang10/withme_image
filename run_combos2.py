@@ -1,3 +1,7 @@
+"""
+run_combos2.py - run through the different combinations for face item parts.
+"""
+
 import argparse
 import os, re, sys
 assert sys.version.startswith('3.6'), "Python version 3.6 is required"
@@ -99,13 +103,13 @@ db = {
     'hair'      :{'done':False,'has_gender':True, 'has_skin':True, 'has_color':True,
                   'files':{
                       'none':{'name':'none', 'gender':'m'}, # bald heads only male
-                      'hair0':{'gender':'m',  'skin':'a,b,c'},
-                      'hair1':{'gender':'m',  'skin':'a,b,c,d'},
-                      'hair2':{'gender':'m',  'skin':'a,b,c,d'},
-                      'hair3':{'gender':'m',  'skin':'a,b,c'},
-                      'hair4':{'gender':'m',  'skin':'a,b,c'},
-                      'hair5':{'gender':'m',  'skin':'a,b,c'},
-                      'hair6':{'gender':'m',  'skin':'a,b,c'},
+                      'hair0':{'gender':'m',},# 'skin':'a,b,c,d'},
+                      'hair1':{'gender':'m',},# 'skin':'a,b,c,d'},
+                      'hair2':{'gender':'m',},# 'skin':'a,b,c,d'},
+                      'hair3':{'gender':'m',},# 'skin':'a,b,c,d'},
+                      'hair4':{'gender':'m',},# 'skin':'a,b,c,d'},
+                      'hair5':{'gender':'m',},# 'skin':'a,b,c,d'},
+                      'hair6':{'gender':'m',},# 'skin':'a,b,c,d'},
                       'hair7':{'gender':' f', 'skin':'a,b,c'},
                       'hair9':{'gender':' f', 'skin':'a,b,c,d'},
                       'hair10':{'gender':'f', 'skin':'a,b,c,d'},
@@ -238,8 +242,6 @@ def item_generator(path, index):
         yield from item_generator(path + [(filename, currfile)], index+1)
         
 def run_items():
-    # for i, filenames in enumerate(item_generator([], 0, {})):
-    #     print(i, '-', '-'.join(filenames), sep='')
     for i, path in enumerate(item_generator([], 0)):
         print(i, '-', '-'.join([p[0] for p in path]), sep='')
 

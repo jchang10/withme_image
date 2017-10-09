@@ -1,3 +1,7 @@
+"""
+run_image2.py - process input file. assemble each line into a face.
+"""
+
 import argparse
 import os, sys
 assert sys.version.startswith('3.6'), "Python version 3.6 is required"
@@ -8,6 +12,7 @@ from pilutil import new_hair_color
 DEBUG=False
 WIDTH=1150
 HEIGHT=1350
+SAVE_FORMAT='.jpg'
 
 db = {
     'skin'      :{'offset':(-25, 500),
@@ -97,7 +102,7 @@ def process_line(line):
             image.paste(backim, db[k]['offset'], backim)
     image.paste(trans, (0,0), trans)
     line = str(index)+'-'+'-'.join(items)
-    path = os.path.join(args.output_path,line+'.png')
+    path = os.path.join(args.output_path,line+SAVE_FORMAT)
     if DEBUG:
         print('saving image '+path)
     else:
