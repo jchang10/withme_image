@@ -129,7 +129,9 @@ def process_random(infile_path):
     from random import randint
     size = len(outputs)
     i = 0
-    while size and (args.count != -1 and i < args.count):
+    print(args.count)
+    while size and (args.count == -1 or i < args.count):
+        print('here')
         size = size-1
         ri = randint(0, size)
         i += 1
