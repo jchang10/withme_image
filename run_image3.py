@@ -44,8 +44,10 @@ db = {
     }
 }
 item_keys=list(db.keys())
+args = None
+image_db = db
 
-def create_db():
+def create_db(db=db,args=args,newfiles=True):
     for k in item_keys:
         for file in os.listdir(os.path.join(args.items_path, k+'s')):
             if file[-4:] == '.png':
@@ -55,9 +57,13 @@ def create_db():
                 if k == 'hair' and file[-5:] == 'b.png':
                     #back of the hair file
                     name = file[:-5]
-                    db[k]['files'][name]['back'] = image
+                    if newfiles or name in db[k]['files']:
+                        db[k]['files'][name]['back'] = image
+                    #remove the unused back hair file
+                    del db[k]['files'][name+'b']
                 else:
-                    db[k]['files'][name] = {'image':image}
+                    if newfiles or name in db[k]['files']:
+                        db[k]['files'][name] = {'image':image}
     return db
 
 def new_color_adjust(image, color):
@@ -65,7 +71,7 @@ def new_color_adjust(image, color):
     assert newim != None, "new_color_adjust failure"
     return newim
 
-def process_line(line):
+def create_image_from_line(line,db=db,args=args):
     index, *items = line.split('-')
     print(index, end=' ', flush=True)
     image = Image.new('RGB', (WIDTH, HEIGHT), color='white')
@@ -74,13 +80,16 @@ def process_line(line):
     subname = None
     for i, name in enumerate(items):
         k = item_keys[i]
+        # skip the placeholder
+        if name == 'none':
+            continue
         if name not in db[k]['files']:
-            # skip the placeholder
-            if name == 'none':
-                continue
             # color?
-            if '!' in name:
-                (subname, color) = name.split('!')
+            if '!' not in name:
+                # skip this line entirely
+                print('Missing file {}. Skipping line entirely: {}'.format(name, line))
+                break
+            (subname, color) = name.split('!')
             assert subname in db[k]['files'], 'Could not process color for line: '+line
         file = db[k]['files'].get(name)
         im, backim = None, None
@@ -97,9 +106,9 @@ def process_line(line):
             if backim:
                 backim = new_color_adjust(backim, color)
                 db[k]['files'][name]['back'] = backim
-        trans.paste(im, db[k]['offset'], im)
+        trans.paste(im, image_db[k]['offset'], im)
         if backim:
-            image.paste(backim, db[k]['offset'], backim)
+            image.paste(backim, image_db[k]['offset'], backim)
     image.paste(trans, (0,0), trans)
     line = str(index)+'-'+'-'.join(items)
     path = os.path.join(args.output_path,line+SAVE_FORMAT)
@@ -108,15 +117,17 @@ def process_line(line):
     else:
         im2 = image.resize((int(image.width/4),int(image.height/4)), Image.ANTIALIAS)
         im2.save(path)
+    return im2
 
 def process_infile(infile_path):
     with open(infile_path) as infile:
         for line in infile:
-            process_line(line.rstrip())
+            create_image_from_line(line.rstrip())
     print()
 
 outputs = []
 def process_random(infile_path):
+    from random import randint
     print("Reading infile")
     line = None
     index = -1
@@ -126,7 +137,6 @@ def process_random(infile_path):
             outputs.append(line.rstrip())
     print("Done with infile. Index =",index)
     print("Processing images ...")
-    from random import randint
     size = len(outputs)
     i = 0
     while size and (args.count == -1 or i < args.count):
@@ -134,7 +144,7 @@ def process_random(infile_path):
         ri = randint(0, size)
         i += 1
         print(str(i)+'.', end='')
-        process_line(outputs[ri])
+        create_image_from_line(outputs[ri])
         outputs[ri] = outputs[size]
         
 
@@ -157,7 +167,7 @@ def create_test_args():
 
 if __name__ == '__main__':
     args = create_args()
-    create_db()
+    db = create_db()
     process_random(args.infile_path)
 
 
