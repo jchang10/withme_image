@@ -70,14 +70,16 @@ def run_matches():
             _match_item(db['hair'], 'white', 'colors')
         else:
             _match_item(db['hair'], 're^(?!white)', 'colors')
-                
-    if args.match_beard:
-        _match_item(db['facehair'], 'facehair2,facehair3,facehair4,facehair5')
-    elif args.match_mustache:
+
+    if args.match_facehair == 'goatee':
+        _match_item(db['facehair'], 'facehair5')
+    elif args.match_facehair == 'beard':
         _match_item(db['facehair'], 'facehair1')
+    elif args.match_facehair == 'mustache':
+        _match_item(db['facehair'], 'facehair0')
     else:
-        _match_item(db['facehair'], 'none')
-        
+        _match_item(db['facehair'], 'none,facehair2,facehair3')
+            
     if args.match_sunglasses:
         _match_item(db['spectacle'], 'spectacle2')
     elif args.match_eyeglasses:
@@ -146,8 +148,7 @@ def create_args(args=None):
     parser.add_argument('--match_skin', help='match item')
     parser.add_argument('--match_gender', help='match item')
     parser.add_argument('--match_age', help='match item', type=int)
-    parser.add_argument('--match_beard', help='match item', default=False, action="store_true")
-    parser.add_argument('--match_mustache', help='match item', default=False, action="store_true")
+    parser.add_argument('--match_facehair', help='can be "mustache, goatee, beard"')
     parser.add_argument('--match_bald', help='match item', default=False, action="store_true")
     parser.add_argument('--match_eyeglasses', help='match item', default=False, action="store_true")
     parser.add_argument('--match_sunglasses', help='match item', default=False, action="store_true")

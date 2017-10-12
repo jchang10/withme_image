@@ -114,7 +114,7 @@ db = {
                       'hair9':{'gender':' f', 'skin':'a,b,c,d'},
                       'hair10':{'gender':'f', 'skin':'a,b,c,d'},
                       'hair11':{'gender':'f', 'skin':'a,b,c'},
-                      'hair12':{'gender':'f', 'skin':'a,b,c'},
+                      'hair12':{'gender':'m', 'skin':'a,b,c'},
                       'hair13':{'gender':'f', 'skin':'a,b,c'},
                       'hair14':{'gender':'f', 'skin':'a,b,c,d'},
                       'hair15':{'gender':'f', 'skin':'a,b,c,d'},
