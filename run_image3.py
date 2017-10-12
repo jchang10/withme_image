@@ -3,7 +3,7 @@ run_image2.py - process input file. assemble each line into a face.
 """
 
 import argparse
-import os, sys
+import os, sys, copy
 assert sys.version.startswith('3.6'), "Python version 3.6 is required"
 from PIL import Image, ImageEnhance
 
@@ -47,7 +47,12 @@ item_keys=list(db.keys())
 args = None
 image_db = db
 
-def create_db(db=db,args=args,newfiles=True):
+def create_db(args):
+    newdb = copy.deepcopy(db)
+    init_db(newdb, args)
+    return newdb
+    
+def init_db(db,args=args,newfiles=True):
     for k in item_keys:
         for file in os.listdir(os.path.join(args.items_path, k+'s')):
             if file[-4:] == '.png':
@@ -60,20 +65,19 @@ def create_db(db=db,args=args,newfiles=True):
                     if newfiles or name in db[k]['files']:
                         db[k]['files'][name]['back'] = image
                     #remove the unused back hair file
-                    del db[k]['files'][name+'b']
+                    if name+'b' in db[k]['files']: 
+                        del db[k]['files'][name+'b']
                 else:
                     if newfiles or name in db[k]['files']:
                         db[k]['files'][name] = {'image':image}
-    return db
 
 def new_color_adjust(image, color):
     newim = new_hair_color(image, color)
     assert newim != None, "new_color_adjust failure"
     return newim
 
-def create_image_from_line(line,db=db,args=args):
+def create_image_from_line(line,args=args,db=db):
     index, *items = line.split('-')
-    print(index, end=' ', flush=True)
     image = Image.new('RGB', (WIDTH, HEIGHT), color='white')
     trans = Image.new('RGBA', (WIDTH, HEIGHT))
     skin = items[0][-1]
@@ -126,7 +130,7 @@ def process_infile(infile_path):
     print()
 
 outputs = []
-def process_random(infile_path):
+def process_random(infile_path,args=args):
     from random import randint
     print("Reading infile")
     line = None
@@ -138,13 +142,13 @@ def process_random(infile_path):
     print("Done with infile. Index =",index)
     print("Processing images ...")
     size = len(outputs)
-    i = 0
-    while size and (args.count == -1 or i < args.count):
+    for i in range(0, args.count):
+        if size == 0:
+            break
         size = size-1
         ri = randint(0, size)
-        i += 1
         print(str(i)+'.', end='')
-        create_image_from_line(outputs[ri])
+        create_image_from_line(outputs[ri],args)
         outputs[ri] = outputs[size]
         
 
@@ -167,7 +171,7 @@ def create_test_args():
 
 if __name__ == '__main__':
     args = create_args()
-    db = create_db()
+    init_db(db, args)
     process_random(args.infile_path)
 
 

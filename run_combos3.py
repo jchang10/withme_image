@@ -3,7 +3,7 @@ run_combos2.py - run through the different combinations for face item parts.
 """
 
 import argparse
-import os, re, sys
+import os, re, sys, copy
 assert sys.version.startswith('3.6'), "Python version 3.6 is required"
 
 db = {
@@ -136,7 +136,12 @@ db = {
 item_keys=list(db.keys())
 args = None
 
-def create_db(args=args):
+def create_db(args):
+    newdb = copy.deepcopy(db)
+    init_db(newdb, args)
+    return newdb
+
+def init_db(db, args=args):
     for k in item_keys:
         # skip items not in argument list
         if args.items and k not in args.items:
@@ -150,7 +155,6 @@ def create_db(args=args):
                 files = db[k]['files']
                 if name not in files:
                     files[name] = {}
-    return db
     
 count = 0            
 def item_recurse(path, index):
@@ -262,7 +266,7 @@ def create_args(args=None):
 
 if __name__ == '__main__':
     args = create_args()
-    create_db(args)
+    init_db(db,args)
     run_items()
     #run_recurse()
 
