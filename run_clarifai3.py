@@ -4,7 +4,7 @@ Create random character images by identifying traits using Clarifai
 
 #setup
 import argparse
-import os, pprint
+import os, pprint, json
 import boto3
 
 from models import FaceImageUrls
@@ -19,25 +19,30 @@ app = ClarifaiApp()
 workflow = app.workflows.get('Demographics')
 
 urls=[
-    {'desc':'Walter White with mustache goatee beard, glasses',
-     'url':'https://i.pinimg.com/736x/c4/c7/13/c4c7139f1222d6b7e3e1a6bbe3b9bead--mustache-and-goatee-goatee-beard.jpg'},
-    {'desc':'Jack Black with beard',
-     'url':'https://i.pinimg.com/originals/3c/66/74/3c667494758c2fedd01bc7fad52c9961.jpg'},
-    {'desc':'James Bond as clean shaven',
-     'url':'https://image.afcdn.com/album/D20150130/483279111-916103_H172246_L.jpg'},
-    {'desc':'Oprah as black female',
-     'url':'http://atlantablackstar.com/wp-content/uploads/2013/09/Oprah-Winfrey.jpg'},
-    {'desc':'Lucy Liu as asian',
-     'url':'http://2.bp.blogspot.com/-sDpC5BQQeok/VGjuWQQVroI/AAAAAAAAbW0/mwEGh9w5lkE/s1600/lucy%2Bliu.jpg'},
-    {'desc':'Donald Trump as age 72',
-     'url':'https://fm.cnbc.com/applications/cnbc.com/resources/img/editorial/2017/08/03/104630007-GettyImages-825587596-donald-trump.jpg'},
-    {'desc':'Billy Bob Thorton with soulpatch, sunglasses',
-     'url':'http://menshaircutstyle.com/wp-content/uploads/celebrities-with-soul-patch-600x600.jpg'},
-    {'desc':'Raj Koothrappali indian clean male',
-     'url':'http://media2.intoday.in/indiatoday/images/stories/kunalstory_647_072816080151.jpg'},
-    {'desc':'Shahrukh Khan clean cut',
-     'url':'http://stylesatlife.com/wp-content/uploads/2014/11/Shahrukh-Khan.jpg'},
+    # read these from urls.txt file
+    # {'desc':'Walter White with mustache goatee beard, glasses',
+    #  'url':'https://i.pinimg.com/736x/c4/c7/13/c4c7139f1222d6b7e3e1a6bbe3b9bead--mustache-and-goatee-goatee-beard.jpg'},
+    # {'desc':'Jack Black with beard',
+    #  'url':'https://i.pinimg.com/originals/3c/66/74/3c667494758c2fedd01bc7fad52c9961.jpg'},
+    # {'desc':'James Bond as clean shaven',
+    #  'url':'https://image.afcdn.com/album/D20150130/483279111-916103_H172246_L.jpg'},
+    # {'desc':'Oprah as black female',
+    #  'url':'http://atlantablackstar.com/wp-content/uploads/2013/09/Oprah-Winfrey.jpg'},
+    # {'desc':'Lucy Liu as asian',
+    #  'url':'http://2.bp.blogspot.com/-sDpC5BQQeok/VGjuWQQVroI/AAAAAAAAbW0/mwEGh9w5lkE/s1600/lucy%2Bliu.jpg'},
+    # {'desc':'Donald Trump as age 72',
+    #  'url':'https://fm.cnbc.com/applications/cnbc.com/resources/img/editorial/2017/08/03/104630007-GettyImages-825587596-donald-trump.jpg'},
+    # {'desc':'Billy Bob Thorton with soulpatch, sunglasses',
+    #  'url':'http://menshaircutstyle.com/wp-content/uploads/celebrities-with-soul-patch-600x600.jpg'},
+    # {'desc':'Raj Koothrappali indian clean male',
+    #  'url':'http://media2.intoday.in/indiatoday/images/stories/kunalstory_647_072816080151.jpg'},
+    # {'desc':'Shahrukh Khan clean cut',
+    #  'url':'http://stylesatlife.com/wp-content/uploads/2014/11/Shahrukh-Khan.jpg'},
 ]
+
+with open('urls.txt') as fr:
+    urls = json.load(fr)
+print('Read {} urls from file {}.'.format(len(urls), 'urls.txt'))
 
 def get_dictlist(d, keylist):
     for key in keylist:
@@ -107,18 +112,21 @@ def get_match_args(idrecord):
     elif id['beard']:
         match_args['--match_facehair'] = 'beard'
         
-    if id['eyeglasses']:
+    evalue = float(id['eyeglasses']['value']) if id['eyeglasses'] else 0
+    svalue = float(id['sunglasses']['value']) if id['sunglasses'] else 0
+    if evalue > svalue:
         match_args['--match_eyeglasses'] = True
-    if id['sunglasses']:
+    else:
         match_args['--match_sunglasses'] = True
 
     return match_args
 
-"""
-clarifai_refresh=True to call clarifai all over again.
-matchargs_refresh=True recreates identification but does not call clarifai
-"""
-def identify(matchargs_refresh=False, clarifai_refresh=False):
+def identify(numid=-1, matchargs_refresh=False, clarifai_refresh=False):
+    """
+    clarifai_refresh=True to call clarifai all over again.
+    matchargs_refresh=True recreates identification but does not call clarifai
+    numid process numid only url
+    """
     url_list = []
     for urlobj in urls:
         url = urlobj['url']
@@ -161,6 +169,8 @@ def identify(matchargs_refresh=False, clarifai_refresh=False):
         except:
             print('get failed. should not have failed for url', url)
         urlobj['faceimageurl'] = faceimageurl
+        if not numid == -1 and not numid == faceimageurl.numid:
+            continue
         print(faceimageurl.numid,faceimageurl.description,url)
         #if DEBUG: pprint.pprint(faceimageurl.identification.as_dict())
         match_args = get_match_args(faceimageurl.identification)
@@ -181,8 +191,8 @@ def identify(matchargs_refresh=False, clarifai_refresh=False):
         print('{numid} {description}'.format(numid=urlobj['faceimageurl'].numid,
                                              description=urlobj['faceimageurl'].description))
 
-def run_identify():
-    identify()
+def run_identify(numid=-1):
+    identify(numid=numid)
 
 def dump_clarifai(numid=-1):
     for urlobj in urls:
@@ -215,3 +225,12 @@ if __name__ == '__main__':
         run_identify()
     
 
+def test():
+    with open('urls.txt') as fp:
+        urls_list = json.load(fp)
+        for url in urls_list:
+            print(url)
+
+def test2(one='one',two='two',three='three'):
+    print(one,two,three)
+    
