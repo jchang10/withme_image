@@ -53,6 +53,12 @@ def create_db(args):
     return newdb
     
 def init_db(db,args=args,newfiles=True):
+    """
+    initialize the db.
+    db: db
+    args: args
+    newfiles: whether any new found files should be added to the db or not.
+    """
     for k in item_keys:
         for file in os.listdir(os.path.join(args.items_path, k+'s')):
             if file[-4:] == '.png':
@@ -91,7 +97,7 @@ def create_image_from_line(line,args=args,db=db):
             # color?
             if '!' not in name:
                 # skip this line entirely
-                print('Missing file {}. Skipping line entirely: {}'.format(name, line))
+                print(f'Missing file {name}. Skipping line entirely: {line}')
                 break
             (subname, color) = name.split('!')
             assert subname in db[k]['files'], 'Could not process color for line: '+line

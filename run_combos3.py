@@ -1,5 +1,5 @@
 """
-run_combos2.py - run through the different combinations for face item parts.
+run_combos3.py - run through the different combinations for face item parts.
 """
 
 import argparse

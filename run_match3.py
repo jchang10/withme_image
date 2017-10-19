@@ -52,6 +52,9 @@ def _match_item(item, matches, files_or_colors='files'):
             del files[filename]
 
 def run_matches():
+    """
+    Run through the db and remove items that are not "matched"
+    """
     # skin and gender matches can occur on a lot of items
     for _key, _item in db.items():
         if _item.get('has_skin'):

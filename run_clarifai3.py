@@ -1,5 +1,9 @@
 """
 Create random character images by identifying traits using Clarifai
+
+Assumes the Clarifai workflow 'myworkflow' is ordered as:
+Demographics
+General
 """
 
 #setup
@@ -12,11 +16,12 @@ import run_match3
 
 DEBUG=True
 
-os.environ['CLARIFAI_API_KEY'] = 'f22221dbd1874a3986d0941a47c7d023'
+os.environ['CLARIFAI_API_KEY'] = 'c2260c7478f24eceb5b00bc13c379b0a'
 from clarifai import rest
 from clarifai.rest import ClarifaiApp, Image
 app = ClarifaiApp()
-workflow = app.workflows.get('Demographics')
+model = app.models.get('my-first-application')
+workflow = app.workflows.get('myworkflow')
 
 urls=[
     # read these from urls.txt file
@@ -40,25 +45,38 @@ urls=[
     #  'url':'http://stylesatlife.com/wp-content/uploads/2014/11/Shahrukh-Khan.jpg'},
 ]
 
-with open('urls.txt') as fr:
-    urls = json.load(fr)
-print('Read {} urls from file {}.'.format(len(urls), 'urls.txt'))
+if len(urls) == 0:
+    with open('urls.txt') as fr:
+        urls = json.load(fr)
+        print('Read {} urls from file {}.'.format(len(urls), 'urls.txt'))
 
 def get_dictlist(d, keylist):
     for key in keylist:
         d = d[key]
     return d
 
+def get_face_data(result):
+    return get_dictlist(result, ['outputs',0,'data','regions',0,'data','face'])
+    
+def get_general_data(result):
+    return get_dictlist(result, ['outputs',1,'data','concepts'])
+
+def get_custom_data(result):
+    return get_dictlist(result, ['outputs',2,'data','concepts'])
+
 def identify1(result):
     _result = {'url':get_dictlist(result, ['input','data','image','url'])}
+
+    # 1. Demographics results 
     # _result['age'] = {'name':'56',value:'0.56999'}
-    face_data = get_dictlist(result, ['outputs',0,'data','regions',0,'data','face'])
+    face_data = get_face_data(result)
     _result['age'] = get_dictlist(face_data, ['age_appearance','concepts',0])
     _result['gender'] = get_dictlist(face_data, ['gender_appearance','concepts',0])
     _result['skin'] = get_dictlist(face_data, ['multicultural_appearance','concepts',0])
 
+    # 2. General results 
     # _result['beard'] = {'name':'beard','value':0.9517182}
-    general_data = get_dictlist(result, ['outputs',1,'data','concepts'])
+    general_data = get_general_data(result)
     _result['mustache'] = next((_data for _data in general_data if _data['name'] == 'mustache'), None)
     _result['beard'] = next((_data for _data in general_data if _data['name'] == 'beard'), None)
     _result['goatee'] = next((_data for _data in general_data if _data['name'] == 'goatee'), None)
@@ -66,16 +84,12 @@ def identify1(result):
     _result['sunglasses'] = next((_data for _data in general_data if _data['name'] == 'sunglasses'), None)
     _result['bald'] = next((_data for _data in general_data if _data['name'] == 'bald'), None)
 
+    # 3. Custom Model
+    custom_data = get_custom_data(result)
+    
     # save the entire result here
     _result['result'] = result
     return _result
-
-def identify2(results):
-    res = []
-    for res2 in results['results']:
-        res3 = identify1(res2)
-        res.append(res3)
-    return res
 
 def get_match_args(idrecord):
     id = idrecord
@@ -143,7 +157,7 @@ def identify(numid=-1, matchargs_refresh=False, clarifai_refresh=False):
     if len(url_list):
         if DEBUG: print('calling Clarifai now for {} images'.format(len(url_list)))
         res1 = workflow.predict([Image(url) for url in url_list])
-        res2 = identify2(res1)
+        res2 = [identify1(_res) for _res in res1['results']]
         res3 = dict(zip(url_list, res2))
     for urlobj in urls:
         url = urlobj['url']
@@ -204,7 +218,7 @@ def dump_clarifai(numid=-1):
             continue
         if numid == -1 or faceimageurl.numid == numid:
             pprint.pprint(faceimageurl.identification.as_dict())
-    
+
 def create_args(args=None):
     parser = argparse.ArgumentParser(description='Images infile processor')
     parser.add_argument('--dump_clarifai', help='match item', default=False, action="store_true")
@@ -233,4 +247,57 @@ def test():
 
 def test2(one='one',two='two',three='three'):
     print(one,two,three)
+
+def test3(*args):
+    print(type(args),args)
     
+def call_clarifai_url(url, desc='default description'):
+    urls = [{'desc':desc,'url':url}]
+    faceiamgeurl = None
+    url_list = [url]
+    try:
+        faceimageurl = FaceImageUrls.get(url)
+        if DEBUG: print('get succeeded. already have identification.')
+    except:
+        if DEBUG: print('get failed. calling clarifai for url',url)
+
+    print('Calling clarifai predict...')
+    res1 = workflow.predict([Image(url)])
+    res2 = [identify1(_res) for _res in res1['results']]
+    res3 = dict(zip(url_list, res2))
+    #save urls
+    for urlobj in urls:
+        url = urlobj['url']
+        try:
+            faceimageurl = FaceImageUrls.get(url)
+            faceimageurl.identification = None
+        except:
+            faceimageurl = FaceImageUrls(url)
+            faceimageurl.numid = FaceImageUrls.count()+1
+            if DEBUG: print('creating new FaceImageUrl: {} {} {}'.format(faceimageurl.numid,
+                                                                         faceimageurl.description,
+                                                                         faceimageurl.url))
+        faceimageurl.identification = res3[url]
+        if desc=='default description':
+            #dont save
+            pass
+        else:
+            faceimageurl.description = desc
+            faceimageurl.save()
+
+    return faceimageurl
+
+def test4(url,desc='default description',model='all'):
+    faceimageurl = call_clarifai_url(url)
+    result = faceimageurl.identification['result']
+    if model=='all' or model=='face':
+        print('=== FACE ===')
+        pprint.pprint(get_face_data(result),width=200)
+    if model=='all' or model=='general':
+        print('=== GENERAL ===')
+        pprint.pprint(get_general_data(result),width=200)
+    if model=='all' or model=='custom':
+        print('=== CUSTOM ===')
+        pprint.pprint(get_custom_data(result),width=200)
+
+
