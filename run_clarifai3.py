@@ -92,7 +92,6 @@ def identify1(result):
     return _result
 
 def get_match_args(idrecord):
-    id = idrecord
     #[skin,gender,hair,beard,mustache,glasses,sunglasses]
     match_args = {}
     if id['skin']:

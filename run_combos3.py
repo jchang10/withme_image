@@ -217,7 +217,7 @@ def skin_match(path, currfile):
     return True
 
 def item_generator(path, index):
-    """ Run through all combinations """
+    """ Run through all combinations. Return a path - a list of (name,fileobj) tuples. """
     if index == len(item_keys):
         yield path
         return

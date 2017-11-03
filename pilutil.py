@@ -1,3 +1,6 @@
+
+import os
+
 from PIL import Image, ImageEnhance
 import numpy as np
 import colorsys
@@ -123,7 +126,6 @@ def new_hair_color(image, color):
         newim = ImageEnhance.Brightness(newim).enhance(1.5)
     return newim
 
-
 #enhancer = ImageEnhance.Brightness(im)
 #%bbenhancer.enhance(0.5).show()
 
@@ -136,3 +138,14 @@ def test1():
     im = Image.open('items/hairs/hair0.png')
     hsv = img_to_hsv(im)
     
+
+IMAGE_EXTS = ('.jpg','.jpeg','.png')
+
+def save_image(image, path):
+    """
+    save image. check path for file extension. if none, then default to jpeg.
+    """
+    if os.path.splitext(path)[1] in IMAGE_EXTS:
+        return image.save(path)
+    else:
+        return image.save(path, format='jpeg')
