@@ -20,7 +20,9 @@ from pynamodb.attributes import UnicodeAttribute, BooleanAttribute, \
 from pynamodb.indexes import GlobalSecondaryIndex, AllProjection
 from pynamodb.models import Model
 
-from input_urls3 import input_urls
+from colorama_util import YELLOW, RED
+from gen_util import chunks
+from input_urls4 import input_urls
 import urllib_util,pilutil
 
 DEBUG=True
@@ -81,7 +83,8 @@ def create_parser():
 
     download_parser.set_defaults(cmd='download')
     download_parser.add_argument('output_path', help='must be a directory')
-    download_parser.add_argument('--count', help='match item', type=int)
+    download_parser.add_argument('--count', help='download only count files', type=int)
+    download_parser.add_argument('--check-size', help='check downloaded image sizes', default=False, action="store_true")
     
     copys3_parser.set_defaults(cmd='copys3')
     copys3_parser.add_argument('input_path', help='must be a directory')
@@ -112,7 +115,9 @@ def create_args(args=None):
 
 def create_test_args(cmd):
     if cmd == 'download':
-        args = create_args(['--dry-run','download','train','--count','10'])
+        args = create_args(['download','train','--count','10'])
+    if cmd == 'checksize':
+        args = create_args(['download','train','--check-size'])
     elif cmd == 'copys3':
         args = create_args(['copys3','train'])
     elif cmd == 'facecrop':
@@ -146,8 +151,31 @@ def cmd_download():
             if os.path.isfile(url_path):
                 print(f'URL already exists. Skipping... {os.path.join(category,qurl):.70}')
                 continue
-            print(f'Downloading... {url:.70}')
-            if not args.dry-run: urllib_util.save_url_to_file(url, url_path)
+            print(f'Downloading... {url}')
+            if not args.dry_run: urllib_util.save_url_to_file(url, url_path)
+
+def gen_all_files(inpath):
+    for root,dirs,files in os.walk(inpath, topdown=True):
+        for name in files:
+            if name.startswith('.'):
+                continue
+            path = os.path.join(root,name)
+            yield path
+
+def cmd_check_size():
+    """
+    check the image resolution. separate to pass and fail images.
+    """
+    pass_urls = []
+    fail_urls = []
+    for path in get_all_files(args.output_path):
+        size = pilutil.image_size(url_path)
+        if any(dim>min(CROP_SIZE) for dim in size):
+            pass_urls.append(url_path)
+        else:
+            fail_urls.append(fail_urls)
+            print(RED('  Image size too small.'))
+    print('Pass urls:',len(pass_urls),'Fail urls:',len(fail_urls))
 
 URL_PREFIX='https://s3-us-west-2.amazonaws.com/withmelabs-faces/'
 FOLDER='train/'
@@ -195,20 +223,11 @@ def cmd_copys3():
 
     all_keys = get_s3_keys()
     images = get_category_keys(all_keys)
+    all_files = [path for path in gen_all_files(args.input_path) if path in images]
 
-    if DEBUG: print("debug: Number of files on S3:", len(images))
-    
-    all_files = []
-    for root,dirs,files in os.walk(args.input_path, topdown=True):
-        for name in files:
-            if name.startswith('.'):
-                continue
-            path = os.path.join(root,name)
-            if path in images:
-                continue
-            all_files.append(path)
-            
-    if DEBUG: print("debug: Number of files upload to S3:", len(all_files))
+    if DEBUG: print(YELLOW('debug:'),"Number of files on S3:", len(images))
+    if DEBUG: print(YELLOW('debug:'),"Number of files upload to S3:",len(all_files))
+
     s3 = boto3.resource('s3')
     mybucket = s3.Bucket(BUCKET)
     for file in all_files:
@@ -257,7 +276,7 @@ def cmd_facecrop():
         categories = []
         for prefix in result.search('CommonPrefixes'):
             key = prefix.get('Prefix')
-            if DEBUG: print('debug: get_s3_categories:key:',key)
+            if DEBUG: print(YELLOW('debug:'),'get_s3_categories:key:',key)
             res = patt.match(key)
             train, category = res[1],res[2]
             if not '-' in category:
@@ -287,7 +306,7 @@ def cmd_facecrop():
                 url = r['input']['data']['image']['url']
                 bb = r['data']['regions'][0]['region_info']['bounding_box']
                 found[url] = {'bounding_box':bb}
-                if DEBUG: print('debug: Predict success',f'{url:70}')
+                if DEBUG: print(YELLOW('debug:'),'Predict success',f'{url:70}')
         return found
 
     def create_bounding_box_image(url,bounding_box):
@@ -318,6 +337,7 @@ def cmd_facecrop():
         newim = im.crop(bb3)
         return newim
 
+
     all_keys = get_s3_keys()
     images = get_category_keys(all_keys)
 
@@ -344,9 +364,14 @@ def cmd_facecrop():
             
     # time to predict
     if len(predicts) == 0:
-        if DEBUG: print("debug: No Images to predict. Returning")
+        if DEBUG: print(YELLOW('debug:'),"No Images to predict. Returning")
     else:
-        assert len(list(predicts)) < 128, "Too many predict images. More than 128."
+        print(YELLOW('debug:'),'Start predicting...')
+        for chunk in chunks(list(predicts), 127):
+            print('predict:',len(chunk))
+        
+        return
+    
         found = predict_urls(list(predicts))
         for url in found:
             key = predicts[url]['key']
@@ -356,10 +381,10 @@ def cmd_facecrop():
     # run thru images and set the bounding_boxes
     for key in list(images):
         if key in mc:
-            if DEBUG: print("debug: Predict SUCCESS", f'{key:.70}')
+            if DEBUG: print(YELLOW("debug:"),"Predict SUCCESS", f'{key:.70}')
             images[key]['bounding_box'] = mc[key]['bounding_box']
         else:
-            if DEBUG: print("debug: Predict FAILED. Skipping...", f'{key:.70}')
+            if DEBUG: print(YELLOW("debug:"),"Predict FAILED. Skipping...", f'{key:.70}')
             del images[key]
 
     # time to crop
@@ -406,7 +431,10 @@ if __name__ == '__main__':
     parser = create_parser()
     args = create_args()
     if args.cmd == 'download':
-        cmd_download()
+        if args.check_size:
+            cmd_check_size()
+        else:
+            cmd_download()
     elif args.cmd == 'copys3':
         cmd_copys3()
     elif args.cmd == 'facecrop':

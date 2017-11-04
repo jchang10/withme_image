@@ -1,3 +1,4 @@
 Pillow==4.2.1
 boto3==1.4.7
 clarifai==2.0.32
+colorama==0.3.9

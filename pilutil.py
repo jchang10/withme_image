@@ -149,3 +149,6 @@ def save_image(image, path):
         return image.save(path)
     else:
         return image.save(path, format='jpeg')
+
+def image_size(path):
+    return Image(path).size
