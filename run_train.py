@@ -9,7 +9,8 @@
 
 """
 
-import argparse, datetime, io, json, os, re, urllib
+import argparse, datetime, io, json, os, pprint, random, re, urllib
+from collections import defaultdict
 import PIL, PIL.ImageDraw
 
 import boto3
@@ -22,16 +23,27 @@ from pynamodb.models import Model
 
 from colorama_util import YELLOW, RED
 from gen_util import chunks
-from input_urls4 import input_urls
+#from input_urls4 import input_urls
+#from train6.input_urls6 import input_urls
+from input_urls import input_urls
 import urllib_util,pilutil
+
+import numpy as np
 
 DEBUG=True
 MYCACHE_FILENAME='mycache.json'
 
 REGION='us-west-2'
 BUCKET='withmelabs-faces'
+URL_PREFIX='https://s3-us-west-2.amazonaws.com/withmelabs-faces/'
 os.environ['AWS_PROFILE']='imvu'
 os.environ['STAGE'] = 'dev'
+
+MYMODEL='mymodel'
+
+#Clarifai api_keys
+# d67c7c8cc16f482d8b9cbd920ca561bf jc-clarifai3 - hit predict limits
+# c39bab083bc64dfebb5034ee71233ff2 jc-clarifai4
 
 class FaceImageUrls(Model):
     class Meta:
@@ -71,37 +83,41 @@ def create_parser():
     parser = argparse.ArgumentParser(description='Image trainer')
     subparsers = parser.add_subparsers(help='download urls')
 
-    download_parser = subparsers.add_parser('download', help='face cropping')
-    copys3_parser = subparsers.add_parser('copys3', help='copy to s3')
+    download_parser = subparsers.add_parser('download', help='download urls')
+    check_parser = subparsers.add_parser('check', help='check downloads')
+    s3_parser = subparsers.add_parser('s3', help='copy to s3')
     facecrop_parser = subparsers.add_parser('facecrop', help='face cropping')
     model_parser = subparsers.add_parser('model', help='model manipulation')
     input_parser = subparsers.add_parser('input', help='input manipulation')
 
     parser.add_argument('--dry-run', help='dry run', default=False, action="store_true")
-    parser.add_argument('--s3', help='save to s3. default to saving locally.',
-                        default=False, action="store_true")
+    parser.add_argument('--count', help='only process count items for debugging', type=int)
 
     download_parser.set_defaults(cmd='download')
     download_parser.add_argument('output_path', help='must be a directory')
-    download_parser.add_argument('--count', help='download only count files', type=int)
-    download_parser.add_argument('--check-size', help='check downloaded image sizes', default=False, action="store_true")
+
+    check_parser.set_defaults(cmd='check')
+    check_parser.add_argument('input_path', help='must be a directory')
+    check_parser.add_argument('--output_urls_path', help='write pass urls to new file')
+    check_parser.add_argument('--delete', help='delete failed urls',
+                              default=False, action="store_true")
     
-    copys3_parser.set_defaults(cmd='copys3')
-    copys3_parser.add_argument('input_path', help='must be a directory')
-    copys3_parser.add_argument('--count', help='match item', type=int)
+    s3_parser.set_defaults(cmd='s3')
+    s3_parser.add_argument('subcmd', help='must be a directory')
+    s3_parser.add_argument('input_path', help='must be a directory')
     
     facecrop_parser.set_defaults(cmd='facecrop')
     facecrop_parser.add_argument('api_key', help='Clarifai api_key')
     facecrop_parser.add_argument('input_path', help='must be a directory')
-    
-    parser.add_argument('--numid', help='optional number prefix')
-    parser.add_argument('--match_skin', help='match item')
-    parser.add_argument('--match_gender', help='match item')
-    parser.add_argument('--match_age', help='match item', type=int)
-    parser.add_argument('--match_facehair', help='can be "mustache, goatee, beard"')
-    parser.add_argument('--match_bald', help='match item', default=False, action="store_true")
-    parser.add_argument('--match_eyeglasses', help='match item', default=False, action="store_true")
-    parser.add_argument('--match_sunglasses', help='match item', default=False, action="store_true")
+
+    model_parser.set_defaults(cmd='model')
+    model_parser.add_argument('subcmd', help='Clarifai api_key')
+    model_parser.add_argument('api_key', help='Clarifai api_key')
+
+    input_parser.set_defaults(cmd='input')
+    input_parser.add_argument('subcmd', help='Clarifai api_key')
+    input_parser.add_argument('api_key', help='Clarifai api_key')
+    input_parser.add_argument('input_path', help='must be a directory')
 
     return parser
             
@@ -116,15 +132,39 @@ def create_args(args=None):
 def create_test_args(cmd):
     if cmd == 'download':
         args = create_args(['download','train','--count','10'])
-    if cmd == 'checksize':
-        args = create_args(['download','train','--check-size'])
-    elif cmd == 'copys3':
-        args = create_args(['copys3','train'])
+    if cmd == 'check':
+        args = create_args(['check','train','--output_urls_path','output_urls.py','--delete'])
+    elif cmd == 's3_copy':
+        args = create_args(['s3','copy','train'])
+    elif cmd == 's3_delete':
+        args = create_args(['s3','delete','train/mustaches/'])
     elif cmd == 'facecrop':
+        # api_key belongs to jc-clarifai3. my-first-application
         args = create_args(['facecrop','a7d4adb4103d4e0482981233770ef056','train'])
+    elif cmd == 'model_create':
+        # api_key belongs to jc-clarifai3. my-third
+        args = create_args(['model','create','d67c7c8cc16f482d8b9cbd920ca561bf'])
+    elif cmd == 'input_add':
+        # api_key belongs to jc-clarifai3. my-third
+        args = create_args(['--dry-run','--count','10','input','add','d67c7c8cc16f482d8b9cbd920ca561bf','train'])
+        #args = create_args(['--count','10','input','add','d67c7c8cc16f482d8b9cbd920ca561bf','train'])
+        #args = create_args(['input','add','d67c7c8cc16f482d8b9cbd920ca561bf','train'])
+    elif cmd == 'input_score':
+        # api_key belongs to jc-clarifai3. my-third
+        args = create_args(['input','score','d67c7c8cc16f482d8b9cbd920ca561bf','train'])
     else:
         assert False, 'No matching cmd'
     return args
+
+def check_file_size(url_path):
+    try:
+        size = pilutil.image_size(url_path)
+    except Exception as ex:
+        return False
+    if any(dim>min(CROP_SIZE) for dim in size):
+        return True
+    else:
+        return False
 
 def cmd_download():
     """
@@ -152,7 +192,14 @@ def cmd_download():
                 print(f'URL already exists. Skipping... {os.path.join(category,qurl):.70}')
                 continue
             print(f'Downloading... {url}')
-            if not args.dry_run: urllib_util.save_url_to_file(url, url_path)
+            try:
+                if not args.dry_run:
+                    urllib_util.save_url_to_file(url, url_path)
+                    if check_file_size(url_path) == False:
+                        print(RED('Failed file size check.'), f'Deleting... {url_path:.70}')
+                        os.remove(url_path)
+            except OSError as ex:
+                print(RED('Failed. Skipping...'),ex)
 
 def gen_all_files(inpath):
     for root,dirs,files in os.walk(inpath, topdown=True):
@@ -162,34 +209,57 @@ def gen_all_files(inpath):
             path = os.path.join(root,name)
             yield path
 
-def cmd_check_size():
+def cmd_check():
     """
     check the image resolution. separate to pass and fail images.
     """
-    pass_urls = []
-    fail_urls = []
-    for path in get_all_files(args.output_path):
-        size = pilutil.image_size(url_path)
+    pass_urls = defaultdict(list)
+    fail_urls = defaultdict(list)
+    fail_all = []
+    for url_path in gen_all_files(args.input_path):
+        train,category,urlq = split_key(url_path)
+        try:
+            size = pilutil.image_size(url_path)
+        except Exception as ex:
+            fail_urls[category].append(url_path)
+            fail_all.append(url_path)
+            if DEBUG: print(RED('  Failed to open:'),size,f'{url_path:.70}')
+            continue
         if any(dim>min(CROP_SIZE) for dim in size):
-            pass_urls.append(url_path)
+            pass_urls[category].append(url_path)
         else:
-            fail_urls.append(fail_urls)
-            print(RED('  Image size too small.'))
-    print('Pass urls:',len(pass_urls),'Fail urls:',len(fail_urls))
+            fail_urls[category].append(url_path)
+            fail_all.append(url_path)
+            if DEBUG: print(RED('  Image size too small:'),size,f'{url_path:.70}')
+    print('Pass urls:')
+    for category in pass_urls:
+        print(category,len(pass_urls[category]))
+    print('Fail urls:')
+    for category in fail_urls:
+        print(category,len(fail_urls[category]))
+
+    if args.output_urls_path:
+        print('Writing pass urls to',args.output_urls_path)
+        with open(args.output_urls_path,'w') as fp:
+            pprint.pprint(pass_urls, fp)
+
+    if args.delete:
+        for path in fail_all:
+            print(f'Deleting... {path:.70}')
+            os.remove(path)
+        
+    return pass_urls,fail_urls
 
 URL_PREFIX='https://s3-us-west-2.amazonaws.com/withmelabs-faces/'
 FOLDER='train/'
 
-def get_s3_keys():
+def get_s3_keys(folder):
     s3 = boto3.resource('s3')
     mybucket = s3.Bucket(BUCKET)
-    mykeys = {}
-    for file in mybucket.objects.filter(Prefix=FOLDER):
-        mykeys[file.key] = 1
-    return mykeys
+    myobjects = mybucket.objects.filter(Prefix=folder)
+    return [obj.key for obj in mybucket.objects.filter(Prefix=folder)]
 
-
-patt = re.compile(r'^(\w+)/(\w+)/(.*)?')
+patt = re.compile(r'^(\w+)/([\w-]+)/(.*)?')
 
 def split_key(key):
     res = patt.match(key)
@@ -199,14 +269,12 @@ def split_key(key):
     else:
         return None,None,None
 
-def get_category_keys(keys):
+def get_image_keys(keys):
     image_keys = {}
     for key in keys:
         train,category,urlq = split_key(key)
         if train is None:
             continue # probably a folder
-        if '-' in category:
-            continue # skip -facecrop folders
         if not urlq:
             continue
         image_keys[key] = {
@@ -216,21 +284,31 @@ def get_category_keys(keys):
         }
     return image_keys
 
-def cmd_copys3():
+def get_facecrops(images):
+    facecrops = defaultdict(list)
+    for key in images:
+        category = images[key]['category']
+        if '-' not in category:
+            continue
+        category,_ = category.split('-',1)
+        facecrops[category].append(key)
+    return facecrops
+
+def cmd_s3_copy():
     """
-    copy the local files to s3
+    copy local files to s3
     """
 
-    all_keys = get_s3_keys()
-    images = get_category_keys(all_keys)
-    all_files = [path for path in gen_all_files(args.input_path) if path in images]
+    all_keys = get_s3_keys(args.input_path)
+    images = get_image_keys(all_keys)
+    local_files = [path for path in gen_all_files(args.input_path) if path not in images]
 
     if DEBUG: print(YELLOW('debug:'),"Number of files on S3:", len(images))
-    if DEBUG: print(YELLOW('debug:'),"Number of files upload to S3:",len(all_files))
+    if DEBUG: print(YELLOW('debug:'),"Number of files upload to S3:",len(local_files))
 
     s3 = boto3.resource('s3')
     mybucket = s3.Bucket(BUCKET)
-    for file in all_files:
+    for file in local_files:
         print("Copying file to S3",f'{file:.70}')
         mybucket.upload_file(file, file, ExtraArgs={'ACL':'public-read'})
             
@@ -242,14 +320,43 @@ def cmd_copys3():
     copy remaining files to s3
     """
 
+def get_s3_categories():
+    client = boto3.client('s3')
+    paginator = client.get_paginator('list_objects')
+    result = paginator.paginate(Bucket=BUCKET, Delimiter='/', Prefix=args.input_path)
+    categories = {}
+    for prefix in result.search('CommonPrefixes'):
+        category = prefix.get('Prefix')
+        if DEBUG: print(YELLOW('debug:'),'get_s3_categories:category:',category)
+        train, category, urlq = split_key(category)
+        categories[category] = dict(zip(('train','category','urlq'),(train,category,urlq)))
+        categories[category]['key'] = os.path.join(train,category,'')
+    return categories
+
+def cmd_s3_delete():
+    key = args.input_path
+    if input(f'Are you sure you want to delete all S3 keys={key}? (y/n) ') != 'y':
+        return
+    s3 = boto3.resource('s3')
+    mybucket = s3.Bucket(BUCKET)
+    if not args.dry_run:
+        mybucket.objects.filter(Prefix=key).delete()
+    
+def s3_url_quote(url):
+    s = url.replace('%','%25')
+    return s
+
+def s3_bucket_url(key):
+    return s3_url_quote(URL_PREFIX+key)
     
 CROP_SIZE=(750,750)
+API_CHUNK_SIZE=128
 
 def cmd_facecrop():
     """
     construct categories list
 
-    for each key in s3
+    for each category in s3
       is the facecrop cached?
       does the facecrop_file exist already? skip it.
     """
@@ -259,40 +366,20 @@ def cmd_facecrop():
             results = paginator.paginate(Bucket=BUCKET, Delimiter='/', Prefix=prefixarg)
             for r in results:
                 for r2 in r['Contents'][1:]:
-                    key = r2['Key']
-                    res = patt.match(key)
-                    category,urlq = res[2],res[3]
+                    category = r2['Key']
+                    train,category,urlq = split_key(category)
                     yield category,urlq
             
     s3 = boto3.resource('s3')
     mybucket = s3.Bucket(BUCKET)
-    mytrain_folder = FOLDER
-    assert mytrain_folder and mytrain_folder.endswith('/'), "FOLDER must be assigned with trailing '/'"
 
-    def get_s3_categories():
-        client = boto3.client('s3')
-        paginator = client.get_paginator('list_objects')
-        result = paginator.paginate(Bucket=BUCKET, Delimiter='/', Prefix=args.input_path)
-        categories = []
-        for prefix in result.search('CommonPrefixes'):
-            key = prefix.get('Prefix')
-            if DEBUG: print(YELLOW('debug:'),'get_s3_categories:key:',key)
-            res = patt.match(key)
-            train, category = res[1],res[2]
-            if not '-' in category:
-                categories.append(category)
-        return categories
-
-    def s3_file_exists(key):
-        objs = list(mybucket.objects.filter(Prefix=key))
-        if len(objs) > 0 and objs[0].key == key:
+    def s3_file_exists(category):
+        objs = list(mybucket.objects.filter(Prefix=category))
+        if len(objs) > 0 and objs[0].category == category:
             return True
         else:
             return False
 
-    def s3_url_quote(url):
-        s = url.replace('%','%25')
-        return s
 
     app = ClarifaiApp(api_key=args.api_key)
     face_detect_model = app.models.get('face-v1.3')
@@ -317,7 +404,7 @@ def cmd_facecrop():
         # adjust bottom_row 10 % bigger for facial hair
         bb = [bb['left_col'],bb['top_row'],
               bb['right_col'],bb['bottom_row']] 
-        bb_adjust = (-10,-10,10,10)
+        bb_adjust = (0,0,0,10)
         try:
             req = urllib.request.Request(url, headers={'User-Agent':'blah'})
             buf = io.BytesIO(urllib.request.urlopen(req).read())
@@ -338,8 +425,19 @@ def cmd_facecrop():
         return newim
 
 
-    all_keys = get_s3_keys()
-    images = get_category_keys(all_keys)
+    all_keys = get_s3_keys(args.input_path)
+    if args.count:
+        all_keys = random.sample(all_keys, args.count)
+    images = get_image_keys(all_keys)
+    categories = defaultdict(int)
+    
+    # filter out facecrop categories
+    for key in list(images):
+        category = images[key]['category']
+        if '-' in category:
+            del images[key]
+        else:
+            categories[category] = 1
 
     # filter out keys that already exist as facecrops
     for key in list(images):
@@ -353,9 +451,8 @@ def cmd_facecrop():
             
     # list of keys for predict
     predicts = {}
-    URL_PREFIX='https://s3-us-west-2.amazonaws.com/withmelabs-faces/'
     for key in list(images):
-        newurl = s3_url_quote(URL_PREFIX+key)
+        newurl = s3_bucket_url(key)
         images[key]['s3url'] = newurl
         if key in mc and mc[key].get('bounding_box'):
             pass
@@ -367,25 +464,31 @@ def cmd_facecrop():
         if DEBUG: print(YELLOW('debug:'),"No Images to predict. Returning")
     else:
         print(YELLOW('debug:'),'Start predicting...')
-        for chunk in chunks(list(predicts), 127):
+        for chunk in chunks(list(predicts), API_CHUNK_SIZE):
             print('predict:',len(chunk))
-        
-        return
-    
-        found = predict_urls(list(predicts))
-        for url in found:
-            key = predicts[url]['key']
-            mc[key] = found[url]
-        mc.save()
+            found = predict_urls(chunk)
+            print('predict: found:', len(found))
+            for url in found:
+                key = predicts[url]['key']
+                mc[key] = found[url]
+            print('Saving mycache...',len(mc))
+            mc.save()
 
     # run thru images and set the bounding_boxes
     for key in list(images):
         if key in mc:
-            if DEBUG: print(YELLOW("debug:"),"Predict SUCCESS", f'{key:.70}')
+            if DEBUG: print(YELLOW("debug:"),"MyCache HIT", f'{key:.70}')
             images[key]['bounding_box'] = mc[key]['bounding_box']
         else:
             if DEBUG: print(YELLOW("debug:"),"Predict FAILED. Skipping...", f'{key:.70}')
             del images[key]
+
+    # create the crop directories
+    for category in categories:
+        cat_path = os.path.join(args.input_path,category+'-facecrop')
+        if not os.path.isdir(cat_path):
+            print("Creating directory", cat_path)
+            os.mkdir(cat_path)
 
     # time to crop
     for key in list(images):
@@ -398,7 +501,7 @@ def cmd_facecrop():
         pilutil.save_image(im, testpath)
         print('Cropped image saved...',f'{newkey:.70}')
 
-    """
+    '''
     urls = {}
     for category,urlq in get_s3_urlqs(categories):
         url = urllib.parse.unquote(urlq)
@@ -422,25 +525,163 @@ def cmd_facecrop():
           does facecrop exist already?
           get faceid - lookup in cache first
           with faceid, generate the cropped image
-    """
+    '''
 
-    return
+def cmd_model_create():
+    app = ClarifaiApp(api_key=args.api_key)
+    mymodel = app.models.create(MYMODEL)
+    mymodel.add_concepts(['beard','goatee','mustache'])
+    mymodel.update(concepts_mutually_exclusive=True,closed_environment=False)
 
+def get_climage_by_category(category, key):
+    s3url = s3_bucket_url(key)
+    if category is None:
+        return Image(url=s3url)
+    elif category == 'beards':
+        return Image(url=s3url, concepts=['beard'])
+    elif category == 'goatees':
+        return Image(url=s3url, concepts=['goatee'])
+    elif category == 'mustaches':
+        return Image(url=s3url, concepts=['mustache'])
+    elif category == 'females':
+        return Image(url=s3url, not_concepts=['beard','goatee','mustache'])
+    elif category == 'cleanshaven':
+        return Image(url=s3url, not_concepts=['beard','goatee','mustache'])
+    else:
+        print(RED('found unknown category folder'),f'skipping... {category} {key:.70}')
+        return None
+    
+def get_climages_by_category(category, keys):
+    climages = []
+    for key in keys:
+        climage = get_climage_by_category(category, key)
+        if climage:
+            climages.append(climage)
+    return climages
+
+def cmd_input_add():
+    app = ClarifaiApp(api_key=args.api_key)
+    all_keys = get_s3_keys(args.input_path)
+    images = get_image_keys(all_keys)
+    # only keep facecrops
+    facecrops = get_facecrops(images)
+    climages=[]
+    for category in facecrops:
+        climages += get_climages_by_category(category, facecrops[category])
+    if DEBUG: print(YELLOW('debug:'),'climages count',len(climages))
+    if args.count:
+        climages=climages[:args.count]
+    if not args.dry_run:
+        for chunk in chunks(climages, API_CHUNK_SIZE):
+            res = app.inputs.bulk_create_images(chunk)
+            print('successfully added images:',len(res))
+
+    cmd_input_status()
+    
+    '''
+    facecrop = {
+      'beard': [ list keys ]
+    for each category
+      construct concept for category
+      for each chunk of images.
+        add images
+    '''
+        
+def cmd_input_delete():
+    app = ClarifaiApp(api_key=args.api_key)
+    app.inputs.delete_all()
+
+def cmd_input_status():
+    app = ClarifaiApp(api_key=args.api_key)
+    status = app.inputs.check_status()
+    print(f'status processed:{status.processed} errors:{status.errors} to_process:{status.to_process}')
+
+def get_result_values(results, concept, single_top_concept=False):
+    values = []
+    for output in results['outputs']:
+        concepts = output['data']['concepts']
+        count = 0
+        for _concept in concepts:
+            name = _concept['name']
+            value = _concept['value']
+            if concept is None or concept == name:
+                values.append(float(value))
+                count += 1
+            if single_top_concept and count > 0:
+                break
+    return values
+
+def get_accuracy_score(results, concept, single_top_concept=False):
+    values = get_result_values(results, concept)
+    values = np.array(values)
+    return values.mean()
+
+def cmd_input_score(nsample=-1):
+    app = ClarifaiApp(api_key=args.api_key)
+    mymodel = app.models.get(MYMODEL)
+    all_keys = get_s3_keys(args.input_path)
+    images = get_image_keys(all_keys)
+    facecrops = get_facecrops(images)
+    climages={}
+    for category in facecrops:
+        climages[category] = get_climages_by_category(None, facecrops[category])
+    predict_results={}
+    for category in climages:
+        climages2 = climages[category]
+        if nsample == -1:
+            nnsample = args.count if args.count else len(climages2)
+        if DEBUG: print(f'calling mymodel.predict for category {category} with sample size={nnsample}')
+        predict_results[category] = mymodel.predict(random.sample(climages2, nnsample))
+    predict_scores={}
+    predict_scores['beard'] = get_accuracy_score(predict_results['beards'], 'beard')
+    print(" beard score", predict_scores['beard'])
+    predict_scores['goatee'] = get_accuracy_score(predict_results['goatees'], 'goatee')
+    print(" goatee score", predict_scores['goatee'])
+    predict_scores['mustache'] = get_accuracy_score(predict_results['mustaches'], 'mustache')
+    print(" mustache score", predict_scores['mustache'])
+    predict_scores['female'] = get_accuracy_score(predict_results['females'], None)
+    print(" female score", predict_scores['female'])
+    predict_scores['cleanshaven'] = get_accuracy_score(predict_results['cleanshaven'], None)
+    print(" cleanshaven score", predict_scores['cleanshaven'])
+        
+    '''
+    for each facecrop_category
+      pick count number of images
+      all mymodel.predict(images)
+
+    '''
+    
 if __name__ == '__main__':
-    mc = MyCache.open(MYCACHE_FILENAME)
+    mc = MyCache.open()
     parser = create_parser()
     args = create_args()
-    if args.cmd == 'download':
-        if args.check_size:
-            cmd_check_size()
-        else:
-            cmd_download()
-    elif args.cmd == 'copys3':
-        cmd_copys3()
+    if 'cmd' not in vars(args):
+        parser.print_help()
+    elif args.cmd == 'download':
+        cmd_download()
+    elif args.cmd == 'check':
+        cmd_check()
+    elif args.cmd == 's3':
+        if args.subcmd == 'copy':
+             cmd_s3_copy()
+        elif args.subcmd == 'delete':
+            cmd_s3_delete()
     elif args.cmd == 'facecrop':
         cmd_facecrop()
+    elif args.cmd == 'model':
+        if args.subcmd == 'create':
+            cmd_model_create()
+    elif args.cmd == 'input':
+        if args.subcmd == 'add':
+            cmd_input_add()
+        elif args.subcmd == 'delete':
+            cmd_input_delete()
+        elif args.subcmd == 'status':
+            cmd_input_status()
+        elif args.subcmd == 'score':
+            cmd_input_score()
     else:
-        create_parser().print_help()
+        parser.print_help()
 
 def test1():
     pass

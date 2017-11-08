@@ -264,7 +264,6 @@ input_urls={
 	'https://i.imgur.com/jwextW8.jpg',
 	'https://s-media-cache-ak0.pinimg.com/originals/52/41/67/524167858d746cfc19169ca519f6065a.jpg',
 	'http://www.newsport.com.au/fileadmin/_processed_/8/6/csm_Costa_2_02d0a5ce2a.jpg',
-	'https://lookaside.fbsbx.com/lookaside/crawler/media/?media_id=1046225038783698',
 	'https://jakesbluecollar.com/wp-content/uploads/2016/12/wolverine.jpg',
 	'http://www.theblaze.com/wp-content/uploads/2013/03/ScreenSnapz0322.jpg',
 	'http://www.hollyfame.com/wp-content/uploads/2015/06/wenn22178256.jpg',
