@@ -23,9 +23,6 @@ from pynamodb.models import Model
 
 from colorama_util import YELLOW, RED
 from gen_util import chunks
-#from input_urls4 import input_urls
-#from train6.input_urls6 import input_urls
-from input_urls import input_urls
 import urllib_util,pilutil
 
 import numpy as np
@@ -166,6 +163,9 @@ def check_file_size(url_path):
     else:
         return False
 
+#from input_urls4 import input_urls
+#from train6.input_urls6 import input_urls
+from test_urls import input_urls
 def cmd_download():
     """
     download urls to output_path.
@@ -198,7 +198,7 @@ def cmd_download():
                     if check_file_size(url_path) == False:
                         print(RED('Failed file size check.'), f'Deleting... {url_path:.70}')
                         os.remove(url_path)
-            except OSError as ex:
+            except Exception as ex:
                 print(RED('Failed. Skipping...'),ex)
 
 def gen_all_files(inpath):
@@ -249,9 +249,6 @@ def cmd_check():
             os.remove(path)
         
     return pass_urls,fail_urls
-
-URL_PREFIX='https://s3-us-west-2.amazonaws.com/withmelabs-faces/'
-FOLDER='train/'
 
 def get_s3_keys(folder):
     s3 = boto3.resource('s3')
@@ -350,7 +347,8 @@ def s3_bucket_url(key):
     return s3_url_quote(URL_PREFIX+key)
     
 CROP_SIZE=(750,750)
-API_CHUNK_SIZE=128
+#API_CHUNK_SIZE=128
+API_CHUNK_SIZE=64
 
 def cmd_facecrop():
     """
@@ -530,7 +528,7 @@ def cmd_facecrop():
 def cmd_model_create():
     app = ClarifaiApp(api_key=args.api_key)
     mymodel = app.models.create(MYMODEL)
-    mymodel.add_concepts(['beard','goatee','mustache'])
+    mymodel.add_concepts(['beard','goatee','mustache','cleanshaven'])
     mymodel.update(concepts_mutually_exclusive=True,closed_environment=False)
 
 def get_climage_by_category(category, key):
@@ -543,9 +541,9 @@ def get_climage_by_category(category, key):
         return Image(url=s3url, concepts=['goatee'])
     elif category == 'mustaches':
         return Image(url=s3url, concepts=['mustache'])
+    elif category == 'cleanshavens':
+        return Image(url=s3url, concepts=['cleanshaven'])
     elif category == 'females':
-        return Image(url=s3url, not_concepts=['beard','goatee','mustache'])
-    elif category == 'cleanshaven':
         return Image(url=s3url, not_concepts=['beard','goatee','mustache'])
     else:
         print(RED('found unknown category folder'),f'skipping... {category} {key:.70}')
@@ -623,6 +621,7 @@ def cmd_input_score(nsample=-1):
     images = get_image_keys(all_keys)
     facecrops = get_facecrops(images)
     climages={}
+    predict_scores={}
     for category in facecrops:
         climages[category] = get_climages_by_category(None, facecrops[category])
     predict_results={}
@@ -632,18 +631,24 @@ def cmd_input_score(nsample=-1):
             nnsample = args.count if args.count else len(climages2)
         if DEBUG: print(f'calling mymodel.predict for category {category} with sample size={nnsample}')
         predict_results[category] = mymodel.predict(random.sample(climages2, nnsample))
-    predict_scores={}
+        concept = category[:-1]
+        predict_scores[concept] = get_accuracy_score(predict_results[category],concept)
+    for concept in predict_scores:
+        print(predict_scores[concept], f'{concept} score')
+
+    '''
     predict_scores['beard'] = get_accuracy_score(predict_results['beards'], 'beard')
     print(" beard score", predict_scores['beard'])
     predict_scores['goatee'] = get_accuracy_score(predict_results['goatees'], 'goatee')
     print(" goatee score", predict_scores['goatee'])
     predict_scores['mustache'] = get_accuracy_score(predict_results['mustaches'], 'mustache')
     print(" mustache score", predict_scores['mustache'])
-    predict_scores['female'] = get_accuracy_score(predict_results['females'], None)
-    print(" female score", predict_scores['female'])
-    predict_scores['cleanshaven'] = get_accuracy_score(predict_results['cleanshaven'], None)
+    #predict_scores['female'] = get_accuracy_score(predict_results['females'], None)
+    #print(" female score", predict_scores['female'])
+    predict_scores['cleanshaven'] = get_accuracy_score(predict_results['cleanshavens'], 'cleanshaven')
     print(" cleanshaven score", predict_scores['cleanshaven'])
-        
+    '''
+
     '''
     for each facecrop_category
       pick count number of images
