@@ -131,6 +131,8 @@ def create_args(args=None):
     return args
 
 def create_test_args(cmd):
+    api_key = 'c39bab083bc64dfebb5034ee71233ff2'
+
     if cmd == 'download':
         args = create_args(['download','train','--count','10'])
     if cmd == 'check':
@@ -141,18 +143,18 @@ def create_test_args(cmd):
         args = create_args(['s3','delete','train/mustaches/'])
     elif cmd == 'facecrop':
         # api_key belongs to jc-clarifai3. my-first-application
-        args = create_args(['facecrop','a7d4adb4103d4e0482981233770ef056','train'])
+        args = create_args(['facecrop',api_key,'test_1109'])
     elif cmd == 'model_create':
         # api_key belongs to jc-clarifai3. my-third
-        args = create_args(['model','create','d67c7c8cc16f482d8b9cbd920ca561bf'])
+        args = create_args(['model','create',api_key])
     elif cmd == 'input_add':
         # api_key belongs to jc-clarifai3. my-third
-        args = create_args(['--dry-run','--count','10','input','add','d67c7c8cc16f482d8b9cbd920ca561bf','train'])
-        #args = create_args(['--count','10','input','add','d67c7c8cc16f482d8b9cbd920ca561bf','train'])
-        #args = create_args(['input','add','d67c7c8cc16f482d8b9cbd920ca561bf','train'])
+        args = create_args(['--dry-run','--count','10','input','add',api_key,'train'])
+        #args = create_args(['--count','10','input','add',api_key,'train'])
+        #args = create_args(['input','add',api_key,'train'])
     elif cmd == 'input_score':
         # api_key belongs to jc-clarifai3. my-third
-        args = create_args(['input','score','d67c7c8cc16f482d8b9cbd920ca561bf','train'])
+        args = create_args(['input','score',api_key,'test_1109'])
     else:
         assert False, 'No matching cmd'
     return args
@@ -285,17 +287,7 @@ def get_image_keys(keys):
         }
     return image_keys
 
-def group_facecrop_images(images):
-    facecrops = {}
-    for key in images:
-        category = images[key]['category']
-        if '-' not in category:
-            continue
-        category,_ = category.split('-',1)
-        facecrops[category][key] = images[key]
-    return facecrops
-
-def get_facecrops(images):
+def get_grouped_facecrops(images):
     facecrops = defaultdict(list)
     for key in images:
         category = images[key]['category']
@@ -304,6 +296,14 @@ def get_facecrops(images):
         category,_ = category.split('-',1)
         facecrops[category].append(key)
     return facecrops
+
+def get_grouped_images(images, ingroup):
+    grouped = defaultdict(list)
+    for key in images:
+        category = images[key]['category']
+        if category in list:
+            grouped[category].append(key)
+    return grouped
 
 def cmd_s3_copy():
     """
@@ -576,7 +576,7 @@ def cmd_input_add():
     all_keys = get_s3_keys(args.input_path)
     images = get_image_keys(all_keys)
     # only keep facecrops
-    facecrops = get_facecrops(images)
+    facecrops = get_grouped_facecrops(images)
     climages=[]
     for category in facecrops:
         climages += get_climages_by_category(category, facecrops[category])
@@ -628,21 +628,32 @@ def get_accuracy_score(results, concept, single_top_concept=False):
     values = np.array(values)
     return values.mean()
 
-def get_predict_results(mymodel, input_path, nsample=-1):
-    """ return predict_results = {category:results} """
-    all_keys = get_s3_keys(input_path)
-    images = get_image_keys(all_keys)
-    facecrops = get_facecrops(images)
+def get_predict_results(grouped_images, mymodel, input_path, nsample=-1):
     climages={}
     predict_results={}
-    for category in facecrops:
-        climages[category] = get_climages_by_category(None, facecrops[category])
+    for category in grouped_images:
+        climages[category] = get_climages_by_category(None, grouped_images[category])
     for category in climages:
         climages2 = climages[category]
         nnsample = nsample if nsample > 0 else len(climages2)
         if DEBUG: print(f'calling mymodel.predict for category {category} with sample size={nnsample}')
         predict_results[category] = mymodel.predict(random.sample(climages2, nnsample))
     return predict_results
+
+def get_facecrop_predict_results(mymodel, input_path, nsample=-1):
+    all_keys = get_s3_keys(input_path)
+    images = get_image_keys(all_keys)
+    facecrops = get_grouped_facecrops(images)
+    predict_results = get_predict_results(facecrops, mymodel, input_path, nsample)
+    return predict_results
+
+def print_predict_scores(predict_results):
+    predict_scores = {}
+    for category in predict_results:
+        concept = category[:-1]
+        predict_scores[concept] = get_accuracy_score(predict_results[category],concept)
+        print(predict_scores[concept], f'{concept} score')
+    return predict_scores
 
 def cmd_input_score(nsample=-1):
     app = ClarifaiApp(api_key=args.api_key)
@@ -652,13 +663,8 @@ def cmd_input_score(nsample=-1):
         nnsample = nsample
     elif args.count:
         nnsample = args.count
-    predict_results = get_predict_results(mymodel, args.input_path, nnsample)
-    predict_scores = {}
-    for category in predict_results:
-        concept = category[:-1]
-        predict_scores[concept] = get_accuracy_score(predict_results[category],concept)
-        print(predict_scores[concept], f'{concept} score')
-    return predict_scores
+    predict_results = get_facecrop_predict_results(mymodel, args.input_path, nnsample)
+    return print_predict_scores(predict_results)
     
     '''
     predict_scores['beard'] = get_accuracy_score(predict_results['beards'], 'beard')
