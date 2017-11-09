@@ -16,16 +16,18 @@ import PIL, PIL.ImageDraw
 import boto3
 from clarifai.rest import ClarifaiApp, Image, Concept
 
+'''
 from pynamodb.attributes import UnicodeAttribute, BooleanAttribute, \
     UTCDateTimeAttribute, NumberAttribute, MapAttribute
 from pynamodb.indexes import GlobalSecondaryIndex, AllProjection
 from pynamodb.models import Model
+'''
+
+import numpy as np
 
 from colorama_util import YELLOW, RED
 from gen_util import chunks
 import urllib_util,pilutil
-
-import numpy as np
 
 DEBUG=True
 MYCACHE_FILENAME='mycache.json'
@@ -42,6 +44,7 @@ MYMODEL='mymodel'
 # d67c7c8cc16f482d8b9cbd920ca561bf jc-clarifai3 - hit predict limits
 # c39bab083bc64dfebb5034ee71233ff2 jc-clarifai4
 
+'''
 class FaceImageUrls(Model):
     class Meta:
         table_name = os.environ.get('STAGE', 'dev') + '.FaceImageUrls'
@@ -56,6 +59,7 @@ class FaceImageUrls(Model):
     def mycreate_table():
         FaceImageUrls.create_table(read_capacity_units=1, write_capacity_units=1)
  
+'''
 class MyCache(dict):
 
     @staticmethod
@@ -281,6 +285,16 @@ def get_image_keys(keys):
         }
     return image_keys
 
+def group_facecrop_images(images):
+    facecrops = {}
+    for key in images:
+        category = images[key]['category']
+        if '-' not in category:
+            continue
+        category,_ = category.split('-',1)
+        facecrops[category][key] = images[key]
+    return facecrops
+
 def get_facecrops(images):
     facecrops = defaultdict(list)
     for key in images:
@@ -348,7 +362,7 @@ def s3_bucket_url(key):
     
 CROP_SIZE=(750,750)
 #API_CHUNK_SIZE=128
-API_CHUNK_SIZE=64
+API_CHUNK_SIZE=100
 
 def cmd_facecrop():
     """
@@ -614,28 +628,38 @@ def get_accuracy_score(results, concept, single_top_concept=False):
     values = np.array(values)
     return values.mean()
 
-def cmd_input_score(nsample=-1):
-    app = ClarifaiApp(api_key=args.api_key)
-    mymodel = app.models.get(MYMODEL)
-    all_keys = get_s3_keys(args.input_path)
+def get_predict_results(mymodel, input_path, nsample=-1):
+    """ return predict_results = {category:results} """
+    all_keys = get_s3_keys(input_path)
     images = get_image_keys(all_keys)
     facecrops = get_facecrops(images)
     climages={}
-    predict_scores={}
+    predict_results={}
     for category in facecrops:
         climages[category] = get_climages_by_category(None, facecrops[category])
-    predict_results={}
     for category in climages:
         climages2 = climages[category]
-        if nsample == -1:
-            nnsample = args.count if args.count else len(climages2)
+        nnsample = nsample if nsample > 0 else len(climages2)
         if DEBUG: print(f'calling mymodel.predict for category {category} with sample size={nnsample}')
         predict_results[category] = mymodel.predict(random.sample(climages2, nnsample))
+    return predict_results
+
+def cmd_input_score(nsample=-1):
+    app = ClarifaiApp(api_key=args.api_key)
+    mymodel = app.models.get(MYMODEL)
+    nnsample = -1
+    if nsample>0:
+        nnsample = nsample
+    elif args.count:
+        nnsample = args.count
+    predict_results = get_predict_results(mymodel, args.input_path, nnsample)
+    predict_scores = {}
+    for category in predict_results:
         concept = category[:-1]
         predict_scores[concept] = get_accuracy_score(predict_results[category],concept)
-    for concept in predict_scores:
         print(predict_scores[concept], f'{concept} score')
-
+    return predict_scores
+    
     '''
     predict_scores['beard'] = get_accuracy_score(predict_results['beards'], 'beard')
     print(" beard score", predict_scores['beard'])
