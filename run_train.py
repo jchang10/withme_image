@@ -143,7 +143,7 @@ def create_test_args(cmd):
         args = create_args(['s3','delete','train/mustaches/'])
     elif cmd == 'facecrop':
         # api_key belongs to jc-clarifai3. my-first-application
-        args = create_args(['facecrop',api_key,'test_1109'])
+        args = create_args(['facecrop',api_key,'test_1110'])
     elif cmd == 'model_create':
         # api_key belongs to jc-clarifai3. my-third
         args = create_args(['model','create',api_key])
@@ -320,8 +320,8 @@ def cmd_s3_copy():
     s3 = boto3.resource('s3')
     mybucket = s3.Bucket(BUCKET)
     for file in local_files:
-        print("Copying file to S3",f'{file:.70}')
-        mybucket.upload_file(file, file, ExtraArgs={'ACL':'public-read'})
+        print(f"Copying file to S3",f'{file:.70}')
+        mybucket.upload_file(file, file, ExtraArgs={'ACL':'public-read','ContentType':'image/jpeg'})
             
     """
     get category keys from s3
@@ -362,7 +362,8 @@ def s3_bucket_url(key):
     
 CROP_SIZE=(750,750)
 #API_CHUNK_SIZE=128
-API_CHUNK_SIZE=100
+#Anything larger seems to fail!!!
+API_CHUNK_SIZE=64
 
 def cmd_facecrop():
     """
@@ -374,7 +375,7 @@ def cmd_facecrop():
     """
     def get_s3_urlqs(categories):
         for category in categories:
-            prefixarg = f'{args.input_path}{category}/'
+            prefixarg = os.path.join(args.input_path,category)+'/'
             results = paginator.paginate(Bucket=BUCKET, Delimiter='/', Prefix=prefixarg)
             for r in results:
                 for r2 in r['Contents'][1:]:
@@ -608,7 +609,8 @@ def cmd_input_status():
     status = app.inputs.check_status()
     print(f'status processed:{status.processed} errors:{status.errors} to_process:{status.to_process}')
 
-def get_result_values(results, concept, single_top_concept=False):
+def get_result_values(results, concept):
+    """ if concept=='none', then return just the top concept values. """
     values = []
     for output in results['outputs']:
         concepts = output['data']['concepts']
@@ -616,14 +618,14 @@ def get_result_values(results, concept, single_top_concept=False):
         for _concept in concepts:
             name = _concept['name']
             value = _concept['value']
-            if concept is None or concept == name:
+            if concept == 'none' or concept == name:
                 values.append(float(value))
                 count += 1
-            if single_top_concept and count > 0:
+            if concept is 'none' and count > 0:
                 break
     return values
 
-def get_accuracy_score(results, concept, single_top_concept=False):
+def get_accuracy_score(results, concept):
     values = get_result_values(results, concept)
     values = np.array(values)
     return values.mean()
@@ -651,6 +653,8 @@ def print_predict_scores(predict_results):
     predict_scores = {}
     for category in predict_results:
         concept = category[:-1]
+        if concept not in ('beard','mustache','goatee','cleanshaven'):
+            concept = 'none'
         predict_scores[concept] = get_accuracy_score(predict_results[category],concept)
         print(predict_scores[concept], f'{concept} score')
     return predict_scores
@@ -665,26 +669,6 @@ def cmd_input_score(nsample=-1):
         nnsample = args.count
     predict_results = get_facecrop_predict_results(mymodel, args.input_path, nnsample)
     return print_predict_scores(predict_results)
-    
-    '''
-    predict_scores['beard'] = get_accuracy_score(predict_results['beards'], 'beard')
-    print(" beard score", predict_scores['beard'])
-    predict_scores['goatee'] = get_accuracy_score(predict_results['goatees'], 'goatee')
-    print(" goatee score", predict_scores['goatee'])
-    predict_scores['mustache'] = get_accuracy_score(predict_results['mustaches'], 'mustache')
-    print(" mustache score", predict_scores['mustache'])
-    #predict_scores['female'] = get_accuracy_score(predict_results['females'], None)
-    #print(" female score", predict_scores['female'])
-    predict_scores['cleanshaven'] = get_accuracy_score(predict_results['cleanshavens'], 'cleanshaven')
-    print(" cleanshaven score", predict_scores['cleanshaven'])
-    '''
-
-    '''
-    for each facecrop_category
-      pick count number of images
-      all mymodel.predict(images)
-
-    '''
     
 if __name__ == '__main__':
     mc = MyCache.open()
